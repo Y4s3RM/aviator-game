@@ -43,6 +43,9 @@ export function useGameBackend() {
       console.log('📡 Update from server:', d);
       console.log('🔍 Crash history received:', d.crashHistory);
 
+      // We are clearly connected if we receive gameState
+      setIsConnected(true);
+
       setGameState(d.state);
       setMultiplier(d.multiplier);
       setCountdown(d.countdown);
@@ -94,6 +97,11 @@ export function useGameBackend() {
   useEffect(() => {
     gameService.connect();
     gameService.addListener(listenerRef.current);
+
+    // If the WS already connected before listener attached, mark as connected
+    if (gameService.isConnected) {
+      setIsConnected(true);
+    }
 
     return () => {
       gameService.removeListener(listenerRef.current);
