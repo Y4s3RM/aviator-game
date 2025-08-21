@@ -511,7 +511,10 @@ function startGameLoop() {
 // =============================================================================
 // WebSocket handling
 // =============================================================================
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ 
+  server,
+  path: '/ws'  // Specific path for WebSocket connections
+});
 
 function broadcastAll() {
   // send each player *their own state* (so we can highlight their bet/cashout)
