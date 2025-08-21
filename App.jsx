@@ -58,6 +58,7 @@ function App() {
   // Authentication state
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Avatar image selection (Telegram photo, user avatar, or identicon fallback)
   const avatarUrl = useMemo(() => {
@@ -66,6 +67,17 @@ function App() {
     const seed = telegramUser?.username || telegramUser?.first_name || user?.username || 'Guest';
     return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundType=gradientLinear`;
   }, [telegramUser, user]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await authService.logout();
+      setIsAuthenticated(false);
+      setUser(null);
+      addNotification({ type: 'success', title: 'Logged out', message: 'You have been logged out', duration: 2000 });
+    } finally {
+      setShowUserMenu(false);
+    }
+  }, [addNotification]);
 
   // Notification functions (defined first to avoid hoisting issues)
   const addNotification = useCallback((notification) => {
@@ -243,17 +255,41 @@ function App() {
             <div className="flex items-center space-x-1 sm:space-x-2">
               {/* Telegram User Info */}
               {telegramUser && (
-                <div className="flex items-center space-x-2">
-                  <img
-                    src={avatarUrl}
-                    alt="avatar"
-                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-gray-700"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="hidden sm:block">
-                    <div className="text-sm font-medium">{telegramUser.first_name}</div>
-                    <div className="text-xs text-gray-400">@{telegramUser.username || 'user'}</div>
-                  </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUserMenu(v => !v)}
+                    className="flex items-center space-x-2 focus:outline-none"
+                  >
+                    <img
+                      src={avatarUrl}
+                      alt="avatar"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-gray-700"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="hidden sm:block text-left">
+                      <div className="text-sm font-medium">{telegramUser.first_name}</div>
+                      <div className="text-xs text-gray-400">@{telegramUser.username || 'user'}</div>
+                    </div>
+                  </button>
+
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-44 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50">
+                      <button
+                        onClick={() => setShowUserProfile(true)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 rounded-t-lg"
+                      >
+                        Profile
+                      </button>
+                      {authService.isAdmin() && (
+                        <button
+                          onClick={handleLogout}
+                          className="w-full text-left px-3 py-2 text-sm text-red-300 hover:bg-gray-700 rounded-b-lg"
+                        >
+                          Logout (Admin)
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
