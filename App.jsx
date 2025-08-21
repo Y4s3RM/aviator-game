@@ -70,6 +70,14 @@ function App() {
     return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundType=gradientLinear`;
   }, [telegramUser, user]);
 
+  const displayName = useMemo(() => {
+    return telegramUser?.first_name || user?.username || 'Guest';
+  }, [telegramUser, user]);
+
+  const displayUsername = useMemo(() => {
+    return telegramUser?.username || user?.username || 'user';
+  }, [telegramUser, user]);
+
   // defined after notification helpers to avoid TDZ
 
   // Notification functions (defined first to avoid hoisting issues)
@@ -264,7 +272,7 @@ function App() {
             {/* Control buttons */}
             <div className="flex items-center space-x-1 sm:space-x-2">
               {/* Telegram User Info */}
-              {telegramUser && (
+              {
                 <div className="relative">
                   <button
                     onClick={() => setShowUserMenu(v => !v)}
@@ -277,8 +285,8 @@ function App() {
                       referrerPolicy="no-referrer"
                     />
                     <div className="hidden sm:block text-left">
-                      <div className="text-sm font-medium">{telegramUser.first_name}</div>
-                      <div className="text-xs text-gray-400">@{telegramUser.username || 'user'}</div>
+                      <div className="text-sm font-medium">{displayName}</div>
+                      <div className="text-xs text-gray-400">@{displayUsername}</div>
                     </div>
                   </button>
 
@@ -301,7 +309,7 @@ function App() {
                     </div>
                   )}
                 </div>
-              )}
+              }
 
               <button 
                 onClick={() => {
