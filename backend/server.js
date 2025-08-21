@@ -509,12 +509,13 @@ function startGameLoop() {
 }
 
 // =============================================================================
-// WebSocket handling
+// WebSocket handling - Railway-compatible with heartbeat
 // =============================================================================
-const wss = new WebSocket.Server({ 
-  server,
-  path: '/ws'  // Specific path for WebSocket connections
-});
+const wss = new WebSocket.Server({ noServer: true });
+
+function heartbeat() { 
+  this.isAlive = true; 
+}
 
 function broadcastAll() {
   // send each player *their own state* (so we can highlight their bet/cashout)
@@ -546,6 +547,10 @@ function broadcastAll() {
 }
 
 wss.on('connection', async (ws, req) => {
+  // Enable heartbeat for this connection
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
+
   let userId = null;
   let user = null;
   let isGuest = true;
@@ -611,10 +616,42 @@ wss.on('connection', async (ws, req) => {
     gameState.players.delete(userId);
     gameState.activeBets.delete(userId);
     if (isGuest) {
-      console.log(`👋 Guest player ${userId} disconnected`);
+      console.log(`👋 Guest player ${userId} disconnected. Total players: ${gameState.players.size}`);
     } else {
-      console.log(`👋 User ${user.username} disconnected`);
+      console.log(`👋 User ${user.username} disconnected. Total players: ${gameState.players.size}`);
     }
+  });
+});
+
+// Heartbeat system - ping clients every 15s to keep connections alive
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      console.log(`💀 Terminating dead connection for user: ${ws.userId}`);
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 15000);
+
+wss.on('close', () => {
+  clearInterval(heartbeatInterval);
+});
+
+// Manual upgrade handling - only upgrade on /ws path
+server.on('upgrade', (req, socket, head) => {
+  console.log(`🔌 WebSocket upgrade request for: ${req.url}`);
+  
+  if (req.url !== '/ws') {
+    console.log(`❌ Rejecting upgrade for non-WebSocket path: ${req.url}`);
+    socket.destroy();
+    return;
+  }
+  
+  console.log(`✅ Upgrading connection to WebSocket on /ws`);
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit('connection', ws, req);
   });
 });
 
