@@ -8,6 +8,7 @@ import BackendTest from './components/BackendTest.jsx';
 import StatsPanel from './components/StatsPanel.jsx';
 import NotificationSystem from './components/NotificationSystem.jsx';
 import AuthModal from './components/AuthModal.jsx';
+import AdminLoginModal from './components/AdminLoginModal.jsx';
 import UserProfile from './components/UserProfile.jsx';
 import { useGameBackend } from './components/hooks/useGameBackend.js';
 import soundEffects from './components/utils/soundEffects.js';
@@ -49,6 +50,7 @@ function App() {
   const [showBackendTest, setShowBackendTest] = useState(false); // Default to main game now
   const [showStatsPanel, setShowStatsPanel] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [prevGameState, setPrevGameState] = useState(gameState);
   const [prevCountdown, setPrevCountdown] = useState(countdown);
@@ -112,6 +114,12 @@ function App() {
     };
 
     initializeAuth();
+
+    // If URL has ?admin=1, open admin login
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('admin') === '1') {
+      setShowAdminLogin(true);
+    }
   }, [addNotification]);
 
   // Debug crash history and connection
@@ -416,6 +424,17 @@ function App() {
         onSuccess={(user) => {
           console.log('User authenticated:', user);
           // The auth service will handle state updates
+        }}
+      />
+
+      {/* Admin Login Modal */}
+      <AdminLoginModal
+        isOpen={showAdminLogin}
+        onClose={() => setShowAdminLogin(false)}
+        onSuccess={(user) => {
+          setIsAuthenticated(true);
+          setUser(user);
+          addNotification({ type: 'success', title: 'Welcome, Admin', message: user.username, duration: 2500 });
         }}
       />
 
