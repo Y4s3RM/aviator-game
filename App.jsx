@@ -68,16 +68,7 @@ function App() {
     return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundType=gradientLinear`;
   }, [telegramUser, user]);
 
-  const handleLogout = useCallback(async () => {
-    try {
-      await authService.logout();
-      setIsAuthenticated(false);
-      setUser(null);
-      addNotification({ type: 'success', title: 'Logged out', message: 'You have been logged out', duration: 2000 });
-    } finally {
-      setShowUserMenu(false);
-    }
-  }, [addNotification]);
+  // defined after notification helpers to avoid TDZ
 
   // Notification functions (defined first to avoid hoisting issues)
   const addNotification = useCallback((notification) => {
@@ -88,6 +79,17 @@ function App() {
   const dismissNotification = useCallback((id) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await authService.logout();
+      setIsAuthenticated(false);
+      setUser(null);
+      addNotification({ type: 'success', title: 'Logged out', message: 'You have been logged out', duration: 2000 });
+    } finally {
+      setShowUserMenu(false);
+    }
+  }, [addNotification]);
 
   // Authentication state management
   useEffect(() => {
