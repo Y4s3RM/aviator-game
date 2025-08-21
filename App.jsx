@@ -59,6 +59,14 @@ function App() {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // Avatar image selection (Telegram photo, user avatar, or identicon fallback)
+  const avatarUrl = useMemo(() => {
+    if (telegramUser?.photo_url) return telegramUser.photo_url;
+    if (user?.avatar) return user.avatar;
+    const seed = telegramUser?.username || telegramUser?.first_name || user?.username || 'Guest';
+    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundType=gradientLinear`;
+  }, [telegramUser, user]);
+
   // Notification functions (defined first to avoid hoisting issues)
   const addNotification = useCallback((notification) => {
     const id = Date.now() + Math.random();
@@ -232,21 +240,22 @@ function App() {
             </div>
             
             {/* Control buttons */}
-                    <div className="flex items-center space-x-1 sm:space-x-2">
-         {/* Telegram User Info */}
-         {telegramUser && (
-           <div className="flex items-center space-x-2">
-             <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 text-white rounded-full flex items-center justify-center">
-               <span className="text-xs sm:text-sm font-bold">
-                 {telegramUser.first_name?.[0] || '👤'}
-               </span>
-             </div>
-             <div className="hidden sm:block">
-               <div className="text-sm font-medium">{telegramUser.first_name}</div>
-               <div className="text-xs text-gray-400">@{telegramUser.username || 'user'}</div>
-             </div>
-           </div>
-         )}
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              {/* Telegram User Info */}
+              {telegramUser && (
+                <div className="flex items-center space-x-2">
+                  <img
+                    src={avatarUrl}
+                    alt="avatar"
+                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-gray-700"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="hidden sm:block">
+                    <div className="text-sm font-medium">{telegramUser.first_name}</div>
+                    <div className="text-xs text-gray-400">@{telegramUser.username || 'user'}</div>
+                  </div>
+                </div>
+              )}
 
               <button 
                 onClick={() => {
