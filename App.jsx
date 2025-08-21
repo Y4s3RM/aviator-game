@@ -71,29 +71,25 @@ function App() {
 
   // Authentication state management
   useEffect(() => {
-    const handleAuthChange = (authState) => {
-      setIsAuthenticated(authState.isAuthenticated);
-      setUser(authState.user);
+    // Initialize auth state from localStorage
+    const initializeAuth = () => {
+      const isAuth = authService.isAuthenticated();
+      const currentUser = authService.getUser();
       
-      if (authState.isAuthenticated) {
+      setIsAuthenticated(isAuth);
+      setUser(currentUser);
+      
+      if (isAuth && currentUser) {
         addNotification({
           type: 'success',
           title: 'Welcome back!',
-          message: `Logged in as ${authState.user.username}`,
+          message: `Logged in as ${currentUser.username}`,
           duration: 3000
         });
       }
     };
 
-    authService.addListener(handleAuthChange);
-    
-    // Initialize auth state
-    setIsAuthenticated(authService.isUserAuthenticated());
-    setUser(authService.getCurrentUser());
-
-    return () => {
-      authService.removeListener(handleAuthChange);
-    };
+    initializeAuth();
   }, [addNotification]);
 
   // Debug crash history and connection
