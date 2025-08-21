@@ -1,7 +1,7 @@
 // 🎮 Game Service - Connects React frontend to our backend
 // This replaces the local game state with real backend communication
 
-const BACKEND_URL = 'http://localhost:3002';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'https://aviator-game-production.up.railway.app';
 
 // Import auth service for token management
 import authService from './authService.js';
@@ -28,9 +28,10 @@ class GameService {
     
     // Get auth token for authenticated connection
     const token = authService.getAuthToken();
+    const baseWsUrl = import.meta.env.VITE_API_BASE_URL?.replace('https://', 'wss://').replace('/api', '') || 'wss://aviator-game-production.up.railway.app';
     const wsUrl = token 
-      ? `ws://localhost:3002?token=${token}`
-      : 'ws://localhost:3002';
+      ? `${baseWsUrl}?token=${token}`
+      : baseWsUrl;
     
     console.log('🔌 WebSocket URL:', wsUrl.replace(/token=[^&]*/, 'token=***'));
     

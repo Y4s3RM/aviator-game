@@ -3,7 +3,7 @@
 
 class AuthService {
   constructor() {
-    this.baseURL = 'http://localhost:3002/api';
+    this.baseURL = import.meta.env.VITE_API_BASE_URL || 'https://aviator-game-production.up.railway.app/api';
     this.token = localStorage.getItem('auth_token');
     this.refreshToken = localStorage.getItem('refresh_token');
     this.user = JSON.parse(localStorage.getItem('user') || 'null');
@@ -202,6 +202,11 @@ class AuthService {
   }
 
   getToken() {
+    return this.token;
+  }
+
+  // Alias for getToken (for backward compatibility)
+  getAuthToken() {
     return this.token;
   }
 
