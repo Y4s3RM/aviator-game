@@ -1,6 +1,7 @@
 {
   "name": "aviator-game",
   "version": "1.0.0",
+  "type": "module",
   "description": "A beautiful mobile-first Aviator-style crash game built with React and TailwindCSS",
   "main": "main.jsx",
   "scripts": {
