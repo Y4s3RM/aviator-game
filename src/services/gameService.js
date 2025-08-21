@@ -101,14 +101,21 @@ class GameService {
     }
   }
 
-  // Reconnect logic - DISABLED to maintain player ID consistency
+  // Reconnect logic with backoff - now safe since server preserves player IDs by path
   attemptReconnect() {
-    console.log('🔄 Reconnection disabled to maintain player ID consistency');
-    console.log('🔄 Please refresh the page to reconnect');
-    // Disable automatic reconnection to prevent player ID changes
-    // this.reconnectAttempts++;
-    // console.log(`🔄 Reconnecting... Attempt ${this.reconnectAttempts}`);
-    // setTimeout(() => this.connect(), 2000);
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('🔄 Max reconnection attempts reached. Please refresh the page.');
+      return;
+    }
+    
+    this.reconnectAttempts++;
+    const backoffDelay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000); // Exponential backoff, max 10s
+    console.log(`🔄 Reconnecting... Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${backoffDelay}ms`);
+    
+    setTimeout(() => {
+      console.log('🔄 Attempting reconnection now...');
+      this.connect();
+    }, backoffDelay);
   }
 
   // Send message to backend
