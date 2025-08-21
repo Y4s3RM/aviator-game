@@ -1,0 +1,23 @@
+[
+  {
+    "id": "0a691394-3c69-414b-b990-858c82ba810d",
+    "username": "testuser",
+    "email": "test@example.com",
+    "password": "$2b$12$CjmuDwMSPXawf6TMQJwih.PjI0ikB8QdbIuDsZbzaEgfvj6yqSVhu",
+    "balance": 10000,
+    "totalWagered": 0,
+    "totalWon": 0,
+    "totalLost": 0,
+    "gamesPlayed": 0,
+    "winRate": 0,
+    "biggestWin": 0,
+    "biggestLoss": 0,
+    "level": 1,
+    "experience": 0,
+    "achievements": [],
+    "createdAt": "2025-08-20T15:52:42.038Z",
+    "lastLoginAt": null,
+    "isActive": true,
+    "role": "player"
+  }
+]

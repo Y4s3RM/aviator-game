@@ -1,0 +1,41 @@
+<svg width="384" height="384" viewBox="0 0 384 384" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1f2937;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#111827;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="plane" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="384" height="384" fill="url(#bg)" rx="38.400000000000006"/>
+  
+  <!-- Plane body -->
+  <path d="M76.80000000000001 192 L268.79999999999995 172.8 L307.20000000000005 192 L268.79999999999995 211.20000000000002 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="3.84"/>
+  
+  <!-- Wings -->
+  <path d="M134.39999999999998 192 L172.8 134.39999999999998 L211.20000000000002 153.60000000000002 L172.8 192 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="1.92"/>
+  <path d="M134.39999999999998 192 L172.8 249.60000000000002 L211.20000000000002 230.39999999999998 L172.8 192 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="1.92"/>
+  
+  <!-- Tail -->
+  <path d="M76.80000000000001 192 L57.599999999999994 153.60000000000002 L96 172.8 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="1.92"/>
+  <path d="M76.80000000000001 192 L57.599999999999994 230.39999999999998 L96 211.20000000000002 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="1.92"/>
+  
+  <!-- Multiplier text -->
+  <text x="192" y="307.20000000000005" 
+        font-family="Arial, sans-serif" 
+        font-size="46.08" 
+        font-weight="bold" 
+        text-anchor="middle" 
+        fill="#10b981">
+    AVIATOR
+  </text>
+</svg>

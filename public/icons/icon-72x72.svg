@@ -1,0 +1,41 @@
+<svg width="72" height="72" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1f2937;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#111827;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="plane" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="72" height="72" fill="url(#bg)" rx="7.2"/>
+  
+  <!-- Plane body -->
+  <path d="M14.4 36 L50.4 32.4 L57.6 36 L50.4 39.6 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="0.72"/>
+  
+  <!-- Wings -->
+  <path d="M25.2 36 L32.4 25.2 L39.6 28.8 L32.4 36 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="0.36"/>
+  <path d="M25.2 36 L32.4 46.800000000000004 L39.6 43.199999999999996 L32.4 36 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="0.36"/>
+  
+  <!-- Tail -->
+  <path d="M14.4 36 L10.799999999999999 28.8 L18 32.4 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="0.36"/>
+  <path d="M14.4 36 L10.799999999999999 43.199999999999996 L18 39.6 Z" 
+        fill="url(#plane)" stroke="#ffffff" stroke-width="0.36"/>
+  
+  <!-- Multiplier text -->
+  <text x="36" y="57.6" 
+        font-family="Arial, sans-serif" 
+        font-size="8.64" 
+        font-weight="bold" 
+        text-anchor="middle" 
+        fill="#10b981">
+    AV
+  </text>
+</svg>

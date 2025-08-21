@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Environment variables
+.env
+backend/.env
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+backend/*.log
+backend/server.log
+
+# Database
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel/
+
+# Railway
+.railway/
+
+# Temporary files
+*.tmp
+*.temp
