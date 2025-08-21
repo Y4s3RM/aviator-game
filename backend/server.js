@@ -18,8 +18,24 @@ const app = express();
 const server = http.createServer(app);
 
 // Security middleware
+const isProduction = process.env.NODE_ENV === 'production';
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable for development
+  // Enable CSP in production for API responses (minimal, API-safe)
+  contentSecurityPolicy: isProduction ? {
+    useDefaults: true,
+    directives: {
+      // API returns JSON; block everything by default
+      defaultSrc: ["'none'"],
+      // Allow API consumers to call us
+      connectSrc: ["'self'", "*"] ,
+      // Disallow framing except Telegram (documented hostnames)
+      frameAncestors: ["'self'", "https://*.telegram.org"],
+      // Basic allowances; API does not serve scripts/styles
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'", "data:"],
+    }
+  } : false,
   crossOriginEmbedderPolicy: false
 }));
 
@@ -39,8 +55,23 @@ const authLimiter = rateLimit({
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
 
+// CORS: allowlist via env in production; permissive in dev
+const parseOrigins = (val) => (val || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+const allowedOrigins = isProduction
+  ? parseOrigins(process.env.CORS_ORIGINS)
+  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:3001'];
+
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:3001'],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // allow non-browser clients
+    if (!isProduction) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS not allowed for this origin'));
+  },
   credentials: true
 }));
 
@@ -131,6 +162,10 @@ app.post('/api/admin/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 })
 ], async (req, res) => {
+  // Disallow new admin registration in production unless explicitly enabled
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_ADMIN_REGISTRATION !== 'true') {
+    return res.status(403).json({ error: 'Admin registration disabled in production' });
+  }
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -551,6 +586,10 @@ wss.on('connection', async (ws, req) => {
   ws.isAlive = true;
   ws.on('pong', heartbeat);
 
+  // Per-connection simple rate limit (messages/second)
+  ws._msgWindowStart = Date.now();
+  ws._msgCount = 0;
+
   let userId = null;
   let user = null;
   let isGuest = true;
@@ -602,7 +641,31 @@ wss.on('connection', async (ws, req) => {
 
   ws.on('message', (msg) => {
     try {
+      // Rate limiting: allow up to 10 messages per second
+      const now = Date.now();
+      if (now - ws._msgWindowStart >= 1000) {
+        ws._msgWindowStart = now;
+        ws._msgCount = 0;
+      }
+      ws._msgCount += 1;
+      if (ws._msgCount > 10) {
+        console.warn(`🚧 Rate limit exceeded for user ${ws.userId}`);
+        return; // Drop excess messages silently
+      }
+
       const data = JSON.parse(msg);
+      if (!data || typeof data !== 'object' || typeof data.type !== 'string') {
+        return; // Ignore invalid messages
+      }
+
+      // Basic schema validation
+      if (data.type === 'bet') {
+        const amount = Number(data.amount);
+        if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) {
+          return; // invalid bet
+        }
+      }
+
       const id = ws.userId;
       if (!id) return;
       if (data.type === 'bet') handleBet(id, data.amount);

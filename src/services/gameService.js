@@ -28,7 +28,8 @@ class GameService {
     
     // Get auth token for authenticated connection
     const token = authService.getAuthToken();
-    const baseWsUrl = import.meta.env.VITE_API_BASE_URL?.replace('https://', 'wss://').replace('/api', '') || 'wss://aviator-game-production.up.railway.app';
+    const explicitWsUrl = import.meta.env.VITE_WS_URL;
+    const baseWsUrl = explicitWsUrl || (import.meta.env.VITE_API_BASE_URL?.replace('https://', 'wss://').replace('/api', '') || 'wss://aviator-game-production.up.railway.app');
     const wsPath = '/ws';  // WebSocket path
     const wsUrl = token 
       ? `${baseWsUrl}${wsPath}?token=${token}`
@@ -36,6 +37,7 @@ class GameService {
     
     console.log('🔌 WebSocket URL:', wsUrl.replace(/token=[^&]*/, 'token=***'));
     console.log('🔧 Environment VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+    console.log('🔧 Environment VITE_WS_URL:', import.meta.env.VITE_WS_URL);
     console.log('🔧 Base WS URL:', baseWsUrl);
     
     try {
