@@ -34,15 +34,19 @@ class GameService {
       ? `${baseWsUrl}${wsPath}?token=${token}`
       : `${baseWsUrl}${wsPath}`;
     
-    console.log('🔌 WebSocket URL:', wsUrl.replace(/token=[^&]*/, 'token=***'));
+    if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+      console.log('🔌 WebSocket URL:', wsUrl.replace(/token=[^&]*/, 'token=***'));
+    }
     
     try {
       this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
-        console.log('✅ Connected to game backend!');
-        console.log('✅ WebSocket URL:', this.ws.url);
-        console.log('✅ WebSocket readyState:', this.ws.readyState);
+        if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+          console.log('✅ Connected to game backend!');
+          console.log('✅ WebSocket URL:', this.ws.url);
+          console.log('✅ WebSocket readyState:', this.ws.readyState);
+        }
         this.isConnected = true;
         this.reconnectAttempts = 0;
         
@@ -58,15 +62,21 @@ class GameService {
       
       this.ws.onmessage = (event) => {
         try {
-          console.log('📨 Raw message received:', event.data);
+          if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+            console.log('📨 Raw message received:', event.data);
+          }
           const message = JSON.parse(event.data);
-          console.log('📨 Parsed message:', message);
+          if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+            console.log('📨 Parsed message:', message);
+          }
           
           // Save player/user ID when we receive it from backend
           if (message.type === 'connected' && message.data?.userId) {
             this.playerId = message.data.userId;
-            console.log('💾 Connected as:', message.data.isGuest ? 'Guest' : 'Authenticated User');
-            console.log('💾 User ID:', this.playerId);
+            if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+              console.log('💾 Connected as:', message.data.isGuest ? 'Guest' : 'Authenticated User');
+              console.log('💾 User ID:', this.playerId);
+            }
           }
           
           this.notifyListeners(message);
@@ -77,20 +87,24 @@ class GameService {
       };
       
       this.ws.onclose = () => {
-        console.log('🔌 Connection closed');
+        if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+          console.log('🔌 Connection closed');
+        }
         this.isConnected = false;
         this.attemptReconnect();
       };
       
       this.ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
-        console.error('❌ WebSocket readyState:', this.ws.readyState);
-        console.error('❌ WebSocket URL:', this.ws.url);
-        console.error('❌ Error details:', {
-          type: error.type,
-          target: error.target,
-          isTrusted: error.isTrusted
-        });
+        if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+          console.error('❌ WebSocket error:', error);
+          console.error('❌ WebSocket readyState:', this.ws.readyState);
+          console.error('❌ WebSocket URL:', this.ws.url);
+          console.error('❌ Error details:', {
+            type: error.type,
+            target: error.target,
+            isTrusted: error.isTrusted
+          });
+        }
       };
       
     } catch (error) {
@@ -120,9 +134,13 @@ class GameService {
   send(message) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
-      console.log('📤 Sent:', message);
+      if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+        console.log('📤 Sent:', message);
+      }
     } else {
-      console.error('❌ WebSocket not connected');
+      if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+        console.error('❌ WebSocket not connected');
+      }
     }
   }
 

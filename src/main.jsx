@@ -4,12 +4,21 @@ import App from '../App.jsx'
 import '../styles.css'
 import { initializeMobileOptimizations } from '../components/MobilePerformance.jsx'
 
+// Silence non-error logs in production unless explicitly enabled via VITE_DEBUG
+if (import.meta.env.PROD && import.meta.env.VITE_DEBUG !== 'true') {
+  console.log = () => {};
+  console.debug = () => {};
+  console.info = () => {};
+}
+
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
-        console.log('🔧 SW registered: ', registration);
+        if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+          console.log('🔧 SW registered: ', registration);
+        }
         
         // Check for updates
         registration.addEventListener('updatefound', () => {
@@ -25,7 +34,9 @@ if ('serviceWorker' in navigator) {
         });
       })
       .catch((registrationError) => {
-        console.log('❌ SW registration failed: ', registrationError);
+        if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+          console.log('❌ SW registration failed: ', registrationError);
+        }
       });
   });
 }
@@ -33,7 +44,9 @@ if ('serviceWorker' in navigator) {
 // Enable app install prompt
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
-  console.log('💾 Install prompt available');
+  if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+    console.log('💾 Install prompt available');
+  }
   e.preventDefault();
   deferredPrompt = e;
   
@@ -44,7 +57,9 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 // Handle app installation
 window.addEventListener('appinstalled', (evt) => {
-  console.log('🎉 App installed successfully');
+  if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
+    console.log('🎉 App installed successfully');
+  }
   deferredPrompt = null;
 });
 
