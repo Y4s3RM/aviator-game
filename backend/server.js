@@ -705,14 +705,15 @@ wss.on('close', () => {
 
 // Manual upgrade handling - only upgrade on /ws path
 server.on('upgrade', (req, socket, head) => {
+  const { pathname } = new URL(req.url, `http://${req.headers.host}`);
   console.log(`🔌 WebSocket upgrade request for: ${req.url}`);
-  
-  if (req.url !== '/ws') {
+
+  if (pathname !== '/ws') {
     console.log(`❌ Rejecting upgrade for non-WebSocket path: ${req.url}`);
     socket.destroy();
     return;
   }
-  
+
   console.log(`✅ Upgrading connection to WebSocket on /ws`);
   wss.handleUpgrade(req, socket, head, (ws) => {
     wss.emit('connection', ws, req);
