@@ -634,6 +634,7 @@ wss.on('connection', async (ws, req) => {
     type: 'connected',
     data: { 
       userId: userId,
+      playerId: userId,
       isGuest: isGuest,
       user: isGuest ? null : user
     }
