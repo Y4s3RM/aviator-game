@@ -1,118 +1,142 @@
-// 🎮 React Hook for Backend Game State
-// This hook manages the connection to our backend and provides game state
+// 🎮 useGameBackend.js - React hook for syncing with WebSocket Aviator backend
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import gameService from '../services/gameService';
+import betHistoryService from '../services/betHistoryService';
 
-export const useGameBackend = () => {
-  // Game state from backend
-  const [gameState, setGameState] = useState('betting');
-  const [multiplier, setMultiplier] = useState(1.00);
-  const [countdown, setCountdown] = useState(5);
-  const [playersOnline, setPlayersOnline] = useState(0);
+export function useGameBackend() {
   const [isConnected, setIsConnected] = useState(false);
-  
-  // Player state
-  const [playerBalance, setPlayerBalance] = useState(10000);
-  const [activeBet, setActiveBet] = useState(0);
+  const [playerId, setPlayerId] = useState(null);
+
+  // server-driven game state:
+  const [gameState, setGameState] = useState('betting');
+  const [multiplier, setMultiplier] = useState(1.0);
+  const [countdown, setCountdown] = useState(0);
+  const [playersOnline, setPlayersOnline] = useState(0);
+
+  // server-driven player state:
+  const [balance, setBalance] = useState(0);
+  const [hasActiveBet, setHasActiveBet] = useState(false);
+  const [activeBetAmount, setActiveBetAmount] = useState(0);
   const [cashedOut, setCashedOut] = useState(false);
-  const [cashedOutAt, setCashedOutAt] = useState(0);
+  const [cashedOutMultiplier, setCashedOutMultiplier] = useState(0);
+  const [crashHistory, setCrashHistory] = useState([]);
+  
+  // Bet tracking state
+  const [currentBetId, setCurrentBetId] = useState(null);
+  
+  // Debug crash history state
+  console.log('🎲 Hook crashHistory state:', crashHistory);
 
-  // Handle messages from backend
-  const handleMessage = useCallback((message) => {
-    console.log('🎮 Game update:', message);
-    
-    switch (message.type) {
-      case 'connected':
-        setIsConnected(true);
-        if (message.data?.gameState) {
-          setGameState(message.data.gameState.state);
-          setMultiplier(message.data.gameState.multiplier);
-          setCountdown(message.data.gameState.countdown);
-          setPlayersOnline(message.data.gameState.playersOnline);
-        }
-        break;
-        
-      case 'gameState':
-        setGameState(message.data.state);
-        setMultiplier(message.data.multiplier);
-        setCountdown(message.data.countdown);
-        setPlayersOnline(message.data.playersOnline);
-        
-        // Reset bet state when new round starts
-        if (message.data.state === 'betting' && gameState !== 'betting') {
-          setActiveBet(0);
-          setCashedOut(false);
-          setCashedOutAt(0);
-        }
-        break;
-        
-      case 'betPlaced':
-        setActiveBet(message.data.amount);
-        setPlayerBalance(message.data.balance);
-        break;
-        
-      case 'cashedOut':
-        setCashedOut(true);
-        setCashedOutAt(message.data.multiplier);
-        setPlayerBalance(message.data.balance);
-        break;
-        
-      case 'error':
-        console.error('❌ Game error:', message.message);
-        // You could show a toast notification here
-        break;
+  // store callback ref
+  const listenerRef = useRef((msg) => {
+    console.log('🔥 [Hook] received ws msg:', msg);
+
+    if (msg.type === 'connected') {
+      console.log('🆔 Assigned player ID:', msg.data.playerId);
+      setPlayerId(msg.data.playerId);
+      setIsConnected(true);
     }
-  }, [gameState]);
 
-  // Connect to backend on mount
+    if (msg.type === 'gameState') {
+      const d = msg.data;
+      console.log('📡 Update from server:', d);
+      console.log('🔍 Crash history received:', d.crashHistory);
+
+      setGameState(d.state);
+      setMultiplier(d.multiplier);
+      setCountdown(d.countdown);
+      setPlayersOnline(d.playersOnline);
+      setHasActiveBet(d.hasActiveBet);
+      setActiveBetAmount(d.activeBetAmount);
+      setCashedOut(d.cashedOut);
+      setCashedOutMultiplier(d.cashedOutMultiplier);
+      setBalance(d.balance);
+      if (d.crashHistory) {
+        console.log('✅ Setting crash history:', d.crashHistory);
+        setCrashHistory(d.crashHistory);
+      } else {
+        console.log('❌ No crash history in message');
+      }
+      
+      // Handle crashed bets (when game crashes and player had active bet but didn't cash out)
+      if (d.state === 'crashed' && currentBetId && !d.cashedOut && d.hasActiveBet) {
+        console.log('💥 Recording crashed bet:', currentBetId);
+        betHistoryService.recordBetOutcome(currentBetId, d.multiplier, 0); // 0 winnings = loss
+        setCurrentBetId(null);
+      }
+    }
+
+    if (msg.type === 'betPlaced') {
+      console.log('✅ [Hook] Bet placed successfully:', msg.data);
+      console.log('✅ [Hook] Bet amount:', msg.data.amount, 'pts');
+      console.log('✅ [Hook] New balance:', msg.data.balance, 'pts');
+      
+      // Record bet in history
+      const bet = betHistoryService.recordBet(msg.data.amount);
+      setCurrentBetId(bet.id);
+    }
+
+    if (msg.type === 'cashedOut') {
+      console.log('✅ [Hook] Cashed out successfully:', msg.data);
+      console.log('✅ [Hook] Winnings:', msg.data.winnings, 'pts at', msg.data.multiplier, 'x');
+      console.log('✅ [Hook] New balance:', msg.data.balance, 'pts');
+      
+      // Record cashout in history
+      if (currentBetId) {
+        betHistoryService.recordBetOutcome(currentBetId, msg.data.multiplier, msg.data.winnings);
+        setCurrentBetId(null);
+      }
+    }
+  });
+
+  // initial connect
   useEffect(() => {
-    console.log('🔌 Connecting to game backend...');
-    gameService.addListener(handleMessage);
     gameService.connect();
+    gameService.addListener(listenerRef.current);
 
-    // Cleanup on unmount
     return () => {
-      gameService.removeListener(handleMessage);
+      gameService.removeListener(listenerRef.current);
       gameService.disconnect();
     };
-  }, [handleMessage]);
-
-  // Game actions
-  const placeBet = useCallback((amount) => {
-    if (gameState === 'betting' && activeBet === 0 && amount <= playerBalance) {
-      gameService.placeBet(amount);
-    }
-  }, [gameState, activeBet, playerBalance]);
-
-  const cashOut = useCallback(() => {
-    if (gameState === 'running' && activeBet > 0 && !cashedOut) {
-      gameService.cashOut();
-    }
-  }, [gameState, activeBet, cashedOut]);
-
-  // Check backend health
-  const checkHealth = useCallback(async () => {
-    return await gameService.checkHealth();
   }, []);
 
+  // Enhanced bet placement with limit checking
+  const placeBetWithLimits = (amount) => {
+    const limitCheck = betHistoryService.canPlaceBet(amount);
+    if (!limitCheck.allowed) {
+      console.warn('Bet blocked by daily limits:', limitCheck.reasons);
+      return { success: false, reasons: limitCheck.reasons };
+    }
+    gameService.placeBet(amount);
+    return { success: true };
+  };
+
   return {
-    // Game state
+    isConnected,
+    playerId,
     gameState,
     multiplier,
     countdown,
     playersOnline,
-    isConnected,
-    
-    // Player state
-    playerBalance,
-    activeBet,
+    crashHistory,
+
+    // synced player values
+    playerBalance: balance,
+    hasActiveBet,
+    activeBetAmount,
     cashedOut,
-    cashedOutAt,
+    cashedOutMultiplier,
+
+    // actions
+    placeBet: placeBetWithLimits,
+    cashOut: () => gameService.cashOut(),
+    checkHealth: () => gameService.checkHealth(),
     
-    // Actions
-    placeBet,
-    cashOut,
-    checkHealth
+    // betting history & stats
+    getBetHistory: () => betHistoryService.getRecentHistory(),
+    getStats: () => betHistoryService.getStats(),
+    getDailyLimits: () => betHistoryService.getDailyLimitsStatus(),
+    canPlaceBet: (amount) => betHistoryService.canPlaceBet(amount)
   };
-};
+}
