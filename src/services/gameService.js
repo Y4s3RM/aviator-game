@@ -34,6 +34,8 @@ class GameService {
       : baseWsUrl;
     
     console.log('🔌 WebSocket URL:', wsUrl.replace(/token=[^&]*/, 'token=***'));
+    console.log('🔧 Environment VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+    console.log('🔧 Base WS URL:', baseWsUrl);
     
     try {
       this.ws = new WebSocket(wsUrl);
