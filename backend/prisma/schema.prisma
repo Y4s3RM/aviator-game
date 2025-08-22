@@ -196,6 +196,12 @@ model PlayerSettings {
   autoCashoutMultiplier Decimal @default(2.0) @db.Decimal(8,2)
   soundEnabled         Boolean  @default(true)
 
+  // Daily limits (client-side enforcement)
+  dailyLimitsEnabled   Boolean  @default(true)
+  maxDailyWager        Decimal  @default(10000) @db.Decimal(10,2)
+  maxDailyLoss         Decimal  @default(5000) @db.Decimal(10,2)
+  maxGamesPerDay       Int      @default(100)
+
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

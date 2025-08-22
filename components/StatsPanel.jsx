@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import betHistoryService from './services/betHistoryService.js';
+import authService from './services/authService.js';
 
 const StatsPanel = ({ isOpen, onClose }) => {
   const [stats, setStats] = useState(null);
@@ -7,6 +8,8 @@ const StatsPanel = ({ isOpen, onClose }) => {
   const [dailyLimits, setDailyLimits] = useState(null);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'history', 'limits'
   const [showLimitSettings, setShowLimitSettings] = useState(false);
+  const [limitsLoaded, setLimitsLoaded] = useState(false);
+  const [lastUserId, setLastUserId] = useState(null);
 
   // Load data when panel opens
   useEffect(() => {
@@ -15,9 +18,41 @@ const StatsPanel = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  const loadData = () => {
+  const loadData = async () => {
     setStats(betHistoryService.getStats());
     setHistory(betHistoryService.getRecentHistory(100));
+    
+    // Load limits from server if authenticated
+    const currentUser = authService.getUser();
+    const currentUserId = currentUser?.id;
+    
+    // Check if user changed or limits not loaded
+    if (authService.isAuthenticated() && (!limitsLoaded || currentUserId !== lastUserId)) {
+      try {
+        const result = await authService.getPlayerSettings();
+        if (result.success && result.settings) {
+          const serverLimits = {
+            enabled: result.settings.dailyLimitsEnabled,
+            maxDailyWager: parseFloat(result.settings.maxDailyWager),
+            maxDailyLoss: parseFloat(result.settings.maxDailyLoss),
+            maxGamesPerDay: result.settings.maxGamesPerDay
+          };
+          
+          // Update betHistoryService with server limits
+          betHistoryService.updateDailyLimits(serverLimits);
+          setLimitsLoaded(true);
+          setLastUserId(currentUserId);
+          console.log('✅ Daily limits loaded from server');
+        }
+      } catch (error) {
+        console.error('Failed to load limits from server:', error);
+      }
+    } else if (!authService.isAuthenticated()) {
+      // Reset loaded state if user logs out
+      setLimitsLoaded(false);
+      setLastUserId(null);
+    }
+    
     setDailyLimits(betHistoryService.getDailyLimitsStatus());
   };
 
@@ -46,9 +81,26 @@ const StatsPanel = ({ isOpen, onClose }) => {
     </div>
   );
 
-  const updateDailyLimits = (newLimits) => {
+  const updateDailyLimits = async (newLimits) => {
+    // Update local storage
     betHistoryService.updateDailyLimits(newLimits);
     setDailyLimits(betHistoryService.getDailyLimitsStatus());
+    
+    // Update server if authenticated
+    if (authService.isAuthenticated()) {
+      try {
+        const serverPayload = {};
+        if ('enabled' in newLimits) serverPayload.dailyLimitsEnabled = newLimits.enabled;
+        if ('maxDailyWager' in newLimits) serverPayload.maxDailyWager = newLimits.maxDailyWager;
+        if ('maxDailyLoss' in newLimits) serverPayload.maxDailyLoss = newLimits.maxDailyLoss;
+        if ('maxGamesPerDay' in newLimits) serverPayload.maxGamesPerDay = newLimits.maxGamesPerDay;
+        
+        await authService.updatePlayerSettings(serverPayload);
+        console.log('✅ Daily limits saved to server');
+      } catch (error) {
+        console.error('Failed to save limits to server:', error);
+      }
+    }
   };
 
   if (!isOpen) return null;

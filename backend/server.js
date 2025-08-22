@@ -485,11 +485,24 @@ app.get('/api/player/settings', authService.authenticateToken.bind(authService),
 
 app.put('/api/player/settings', authService.authenticateToken.bind(authService), async (req, res) => {
   try {
-    const { autoCashoutEnabled, autoCashoutMultiplier, soundEnabled } = req.body || {};
+    const { 
+      autoCashoutEnabled, 
+      autoCashoutMultiplier, 
+      soundEnabled,
+      dailyLimitsEnabled,
+      maxDailyWager,
+      maxDailyLoss,
+      maxGamesPerDay
+    } = req.body || {};
+    
     const payload = {};
     if (typeof autoCashoutEnabled === 'boolean') payload.autoCashoutEnabled = autoCashoutEnabled;
     if (typeof autoCashoutMultiplier === 'number') payload.autoCashoutMultiplier = autoCashoutMultiplier;
     if (typeof soundEnabled === 'boolean') payload.soundEnabled = soundEnabled;
+    if (typeof dailyLimitsEnabled === 'boolean') payload.dailyLimitsEnabled = dailyLimitsEnabled;
+    if (typeof maxDailyWager === 'number') payload.maxDailyWager = maxDailyWager;
+    if (typeof maxDailyLoss === 'number') payload.maxDailyLoss = maxDailyLoss;
+    if (typeof maxGamesPerDay === 'number') payload.maxGamesPerDay = maxGamesPerDay;
 
     const updated = await databaseService.upsertPlayerSettings(req.user.id, payload);
     res.json({ success: true, settings: updated });

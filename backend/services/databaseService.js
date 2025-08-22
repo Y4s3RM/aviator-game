@@ -78,12 +78,20 @@ class DatabaseService {
           ...('autoCashoutEnabled' in partialSettings ? { autoCashoutEnabled: partialSettings.autoCashoutEnabled } : {}),
           ...('autoCashoutMultiplier' in partialSettings ? { autoCashoutMultiplier: new prisma.Prisma.Decimal(partialSettings.autoCashoutMultiplier) } : {}),
           ...('soundEnabled' in partialSettings ? { soundEnabled: partialSettings.soundEnabled } : {}),
+          ...('dailyLimitsEnabled' in partialSettings ? { dailyLimitsEnabled: partialSettings.dailyLimitsEnabled } : {}),
+          ...('maxDailyWager' in partialSettings ? { maxDailyWager: new prisma.Prisma.Decimal(partialSettings.maxDailyWager) } : {}),
+          ...('maxDailyLoss' in partialSettings ? { maxDailyLoss: new prisma.Prisma.Decimal(partialSettings.maxDailyLoss) } : {}),
+          ...('maxGamesPerDay' in partialSettings ? { maxGamesPerDay: partialSettings.maxGamesPerDay } : {}),
         },
         create: {
           userId,
           autoCashoutEnabled: !!partialSettings.autoCashoutEnabled,
           autoCashoutMultiplier: new prisma.Prisma.Decimal(partialSettings.autoCashoutMultiplier ?? 2.0),
           soundEnabled: 'soundEnabled' in partialSettings ? !!partialSettings.soundEnabled : true,
+          dailyLimitsEnabled: 'dailyLimitsEnabled' in partialSettings ? !!partialSettings.dailyLimitsEnabled : true,
+          maxDailyWager: new prisma.Prisma.Decimal(partialSettings.maxDailyWager ?? 10000),
+          maxDailyLoss: new prisma.Prisma.Decimal(partialSettings.maxDailyLoss ?? 5000),
+          maxGamesPerDay: partialSettings.maxGamesPerDay ?? 100,
         }
       });
       return updated;
