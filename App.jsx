@@ -56,6 +56,7 @@ function App() {
   const [prevGameState, setPrevGameState] = useState(gameState);
   const [prevCountdown, setPrevCountdown] = useState(countdown);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [notifications, setNotifications] = useState([]);
   
   // Authentication state
@@ -146,10 +147,17 @@ function App() {
           // Reconnect WebSocket with new auth token
           gameService.disconnect();
           gameService.connect();
+          
+          // Load player settings
+          loadPlayerSettings();
+        } else {
+          // User logged out
+          setSettingsLoaded(false);
         }
       } else if (isAuth && currentUser?.id !== user?.id) {
         // User changed
         setUser(currentUser);
+        loadPlayerSettings();
       }
     }, 1000); // Check every second
 
@@ -161,6 +169,47 @@ function App() {
     
     return () => clearInterval(authCheckInterval);
   }, [addNotification, isAuthenticated, user]);
+  
+  // Load player settings when authenticated
+  const loadPlayerSettings = useCallback(async () => {
+    if (!authService.isAuthenticated() || settingsLoaded) return;
+    
+    try {
+      const result = await authService.getPlayerSettings();
+      if (result.success && result.settings) {
+        setSoundEnabled(result.settings.soundEnabled);
+        soundEffects.setEnabled(result.settings.soundEnabled);
+        setSettingsLoaded(true);
+        console.log('✅ Player settings loaded');
+      }
+    } catch (error) {
+      console.error('Failed to load player settings:', error);
+    }
+  }, [settingsLoaded]);
+  
+  // Load settings on mount if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && !settingsLoaded) {
+      loadPlayerSettings();
+    }
+  }, [isAuthenticated, settingsLoaded, loadPlayerSettings]);
+  
+  // Save sound settings when changed
+  useEffect(() => {
+    if (!isAuthenticated || !settingsLoaded) return;
+    
+    const saveSettings = async () => {
+      try {
+        await authService.updatePlayerSettings({ soundEnabled });
+        console.log('✅ Sound settings saved');
+      } catch (error) {
+        console.error('Failed to save sound settings:', error);
+      }
+    };
+    
+    const debounceTimer = setTimeout(saveSettings, 500);
+    return () => clearTimeout(debounceTimer);
+  }, [soundEnabled, isAuthenticated, settingsLoaded]);
 
   // Debug crash history and connection
   console.log('🎯 App crashHistory:', crashHistory, 'length:', crashHistory?.length);
@@ -326,15 +375,10 @@ function App() {
                     <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50">
                       {/* Sound control */}
                       <button
-                        onClick={async () => {
+                        onClick={() => {
                           const newSoundState = soundEffects.toggleSound();
                           setSoundEnabled(newSoundState);
-                          try {
-                            const auth = (await import('./components/services/authService.js')).default;
-                            if (auth.getAuthToken()) {
-                              await auth.updatePlayerSettings({ soundEnabled: newSoundState });
-                            }
-                          } catch (_) {}
+                          setShowUserMenu(false);
                         }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 rounded-t-lg"
                       >

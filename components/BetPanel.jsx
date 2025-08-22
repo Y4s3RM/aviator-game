@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import soundEffects from './utils/soundEffects.js';
 import { TelegramButton, useTelegramWebApp } from './TelegramWebApp.jsx';
 
@@ -9,6 +9,8 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
   // Auto-cashout state (persisted)
   const [autoCashoutEnabled, setAutoCashoutEnabled] = useState(false);
   const [autoCashoutMultiplier, setAutoCashoutMultiplier] = useState(2.0);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const lastUserIdRef = useRef(null);
   const [showAutoCashoutSettings, setShowAutoCashoutSettings] = useState(false);
   
   // Visual feedback state
@@ -29,37 +31,74 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
     }
   }, [multiplier, autoCashoutEnabled, autoCashoutMultiplier, gameState, activeBet, cashedOutMultiplier, onCashOut]);
 
-  // Load persisted settings on mount
+  // Load persisted settings when auth state changes
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    
+    const loadSettings = async () => {
       try {
         const auth = (await import('./services/authService.js')).default;
-        if (!auth.getAuthToken()) return; // Skip for guests
-        const res = await auth.getPlayerSettings();
-        if (mounted && res?.success && res.settings) {
-          if (typeof res.settings.autoCashoutEnabled === 'boolean') setAutoCashoutEnabled(res.settings.autoCashoutEnabled);
-          if (res.settings.autoCashoutMultiplier) setAutoCashoutMultiplier(parseFloat(res.settings.autoCashoutMultiplier));
+        if (!auth.isAuthenticated()) {
+          setSettingsLoaded(false);
+          return;
         }
-      } catch (_) {}
-    })();
-    return () => { mounted = false; };
-  }, []);
+        
+        const currentUser = auth.getUser();
+        const userId = currentUser?.id;
+        
+        // Check if user changed or settings not loaded
+        if (userId !== lastUserIdRef.current || !settingsLoaded) {
+          lastUserIdRef.current = userId;
+          
+          const res = await auth.getPlayerSettings();
+          if (mounted && res?.success && res.settings) {
+            if (typeof res.settings.autoCashoutEnabled === 'boolean') {
+              setAutoCashoutEnabled(res.settings.autoCashoutEnabled);
+            }
+            if (res.settings.autoCashoutMultiplier) {
+              setAutoCashoutMultiplier(parseFloat(res.settings.autoCashoutMultiplier));
+            }
+            setSettingsLoaded(true);
+            console.log('✅ Auto-cashout settings loaded');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load auto-cashout settings:', error);
+      }
+    };
+    
+    // Initial load
+    loadSettings();
+    
+    // Poll for auth changes
+    const interval = setInterval(loadSettings, 1000);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [settingsLoaded]);
 
   // Persist changes (debounced)
   useEffect(() => {
+    if (!settingsLoaded) return;
+    
     const handle = setTimeout(async () => {
       try {
         const auth = (await import('./services/authService.js')).default;
-        if (!auth.getAuthToken()) return; // Skip for guests
+        if (!auth.isAuthenticated()) return;
+        
         await auth.updatePlayerSettings({
           autoCashoutEnabled,
           autoCashoutMultiplier: Number(autoCashoutMultiplier)
         });
-      } catch (_) {}
+        console.log('✅ Auto-cashout settings saved');
+      } catch (error) {
+        console.error('Failed to save auto-cashout settings:', error);
+      }
     }, 500);
     return () => clearTimeout(handle);
-  }, [autoCashoutEnabled, autoCashoutMultiplier]);
+  }, [autoCashoutEnabled, autoCashoutMultiplier, settingsLoaded]);
   const handleDecrease = () => {
     setBetAmount(prev => Math.max(100, prev - 100));
   };
