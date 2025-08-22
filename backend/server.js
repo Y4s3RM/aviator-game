@@ -46,17 +46,30 @@ app.use(helmet({
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  message: 'Too many requests from this IP, please try again later.',
+  skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // limit each IP to 5 auth requests per windowMs
-  message: 'Too many authentication attempts, please try again later.'
+  message: 'Too many authentication attempts, please try again later.',
+  skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
 });
 
-app.use('/api/', limiter);
+// Settings endpoints need higher limits due to polling
+const settingsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes  
+  max: 300, // Higher limit for settings endpoints (polling every second)
+  message: 'Too many settings requests, please try again later.',
+  skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
+});
+
+app.use('/api/player/settings', settingsLimiter);
 app.use('/api/auth/', authLimiter);
+app.use('/api/', limiter);
 
 // CORS: allowlist via env in production; permissive in dev
 const parseOrigins = (val) => (val || '')
