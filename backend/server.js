@@ -466,6 +466,36 @@ app.get('/api/leaderboard', authService.optionalAuth.bind(authService), async (r
   }
 });
 
+// =============================================================================
+// PLAYER SETTINGS ROUTES (auth required)
+// =============================================================================
+
+app.get('/api/player/settings', authService.authenticateToken.bind(authService), async (req, res) => {
+  try {
+    const settings = await databaseService.getPlayerSettings(req.user.id);
+    res.json({ success: true, settings: settings || null });
+  } catch (error) {
+    console.error('❌ Player settings get error:', error);
+    res.status(500).json({ error: 'Failed to get settings' });
+  }
+});
+
+app.put('/api/player/settings', authService.authenticateToken.bind(authService), async (req, res) => {
+  try {
+    const { autoCashoutEnabled, autoCashoutMultiplier, soundEnabled } = req.body || {};
+    const payload = {};
+    if (typeof autoCashoutEnabled === 'boolean') payload.autoCashoutEnabled = autoCashoutEnabled;
+    if (typeof autoCashoutMultiplier === 'number') payload.autoCashoutMultiplier = autoCashoutMultiplier;
+    if (typeof soundEnabled === 'boolean') payload.soundEnabled = soundEnabled;
+
+    const updated = await databaseService.upsertPlayerSettings(req.user.id, payload);
+    res.json({ success: true, settings: updated });
+  } catch (error) {
+    console.error('❌ Player settings update error:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
 // Crash point generation now uses provably fair system
 let currentGameRound = null;
 

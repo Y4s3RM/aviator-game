@@ -37,12 +37,59 @@ class DatabaseService {
           isVerified: !!telegramId, // Auto-verify Telegram users
         },
       });
+
+      // Create default player settings (best-effort)
+      try {
+        await prisma.playerSettings.create({
+          data: {
+            userId: user.id,
+            autoCashoutEnabled: false,
+            autoCashoutMultiplier: new prisma.Prisma.Decimal(2.0),
+            soundEnabled: true,
+          }
+        });
+      } catch (_) {}
       
       console.log(`👤 Created user: ${username} (${user.id})`);
       return { success: true, user: this.sanitizeUser(user) };
     } catch (error) {
       console.error('❌ Error creating user:', error);
       return { success: false, error: 'Failed to create user' };
+    }
+  }
+
+  // ==================== PLAYER SETTINGS ====================
+
+  async getPlayerSettings(userId) {
+    try {
+      const settings = await prisma.playerSettings.findUnique({ where: { userId } });
+      return settings;
+    } catch (error) {
+      console.error('❌ Error getting player settings:', error);
+      return null;
+    }
+  }
+
+  async upsertPlayerSettings(userId, partialSettings) {
+    try {
+      const updated = await prisma.playerSettings.upsert({
+        where: { userId },
+        update: {
+          ...('autoCashoutEnabled' in partialSettings ? { autoCashoutEnabled: partialSettings.autoCashoutEnabled } : {}),
+          ...('autoCashoutMultiplier' in partialSettings ? { autoCashoutMultiplier: new prisma.Prisma.Decimal(partialSettings.autoCashoutMultiplier) } : {}),
+          ...('soundEnabled' in partialSettings ? { soundEnabled: partialSettings.soundEnabled } : {}),
+        },
+        create: {
+          userId,
+          autoCashoutEnabled: !!partialSettings.autoCashoutEnabled,
+          autoCashoutMultiplier: new prisma.Prisma.Decimal(partialSettings.autoCashoutMultiplier ?? 2.0),
+          soundEnabled: 'soundEnabled' in partialSettings ? !!partialSettings.soundEnabled : true,
+        }
+      });
+      return updated;
+    } catch (error) {
+      console.error('❌ Error upserting player settings:', error);
+      return null;
     }
   }
   
