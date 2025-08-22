@@ -1,7 +1,7 @@
 // Service Worker for Aviator Game PWA
-const CACHE_NAME = 'aviator-game-v1.0.0';
-const STATIC_CACHE_NAME = 'aviator-static-v1.0.0';
-const DYNAMIC_CACHE_NAME = 'aviator-dynamic-v1.0.0';
+const CACHE_NAME = 'aviator-game-v2.0.0'; // Force cache update
+const STATIC_CACHE_NAME = 'aviator-static-v2.0.0';
+const DYNAMIC_CACHE_NAME = 'aviator-dynamic-v2.0.0';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
