@@ -33,8 +33,12 @@ export function useGameBackend() {
     console.log('🔥 [Hook] received ws msg:', msg);
 
     if (msg.type === 'connected') {
-      console.log('🆔 Assigned player ID:', msg.data.playerId);
-      setPlayerId(msg.data.playerId);
+      // Some clients emit a local 'connected' without data; guard it
+      const pid = msg?.data?.playerId || msg?.data?.userId;
+      if (pid) {
+        console.log('🆔 Assigned player ID:', pid);
+        setPlayerId(pid);
+      }
       setIsConnected(true);
     }
 
