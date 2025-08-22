@@ -118,7 +118,7 @@ model Bet {
   // Relations
   user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   gameRound       GameRound  @relation(fields: [gameRoundId], references: [id], onDelete: Cascade)
-  transaction     Transaction?
+  transactions    Transaction[]
   
   @@map("bets")
 }
@@ -127,7 +127,7 @@ model Bet {
 model Transaction {
   id              String          @id @default(cuid())
   userId          String
-  betId           String?         @unique
+  betId           String?
   
   // Transaction details
   type            TransactionType
