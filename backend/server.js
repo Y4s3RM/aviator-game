@@ -638,7 +638,15 @@ wss.on('connection', async (ws, req) => {
 
   // Try to authenticate user from token in query params or headers
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const token = url.searchParams.get('token') || req.headers.authorization?.split(' ')[1];
+  let token = url.searchParams.get('token') || req.headers.authorization?.split(' ')[1];
+  // Also accept token via WebSocket subprotocols: ['auth','bearer.<token>']
+  if (!token && req.headers['sec-websocket-protocol']) {
+    const prot = req.headers['sec-websocket-protocol']
+      .split(',')
+      .map(s => s.trim());
+    const bearer = prot.find(p => p.startsWith('bearer.'));
+    if (bearer) token = bearer.substring('bearer.'.length);
+  }
 
   if (token) {
     const verification = authService.verifyToken(token);

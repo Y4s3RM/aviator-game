@@ -30,16 +30,15 @@ class GameService {
     const token = authService.getAuthToken();
     const baseWsUrl = import.meta.env.VITE_API_BASE_URL?.replace('https://', 'wss://').replace('/api', '') || 'wss://aviator-game-production.up.railway.app';
     const wsPath = '/ws';  // WebSocket path
-    const wsUrl = token 
-      ? `${baseWsUrl}${wsPath}?token=${token}`
-      : `${baseWsUrl}${wsPath}`;
+    const wsUrl = `${baseWsUrl}${wsPath}`;
     
     if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
       console.log('🔌 WebSocket URL:', wsUrl.replace(/token=[^&]*/, 'token=***'));
     }
     
     try {
-      this.ws = new WebSocket(wsUrl);
+      // Prefer subprotocol for token to avoid very long query strings
+      this.ws = token ? new WebSocket(wsUrl, [`auth`, `bearer.${token}`]) : new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
         if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
