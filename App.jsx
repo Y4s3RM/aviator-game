@@ -13,6 +13,7 @@ import UserProfile from './components/UserProfile.jsx';
 import { useGameBackend } from './components/hooks/useGameBackend.js';
 import soundEffects from './components/utils/soundEffects.js';
 import authService from './components/services/authService.js';
+import gameService from './components/services/gameService.js';
 import TelegramWebApp, { useTelegramWebApp, TelegramThemeStyles } from './components/TelegramWebApp.jsx';
 
 function App() {
@@ -256,9 +257,9 @@ function App() {
             {/* Balance - Always visible */}
             <div className="text-right">
               <div className="text-xs sm:text-sm text-gray-400">
-                {telegramUser ? 'Balance' : 'Demo Balance'}
+                {isAuthenticated ? 'Balance' : 'Demo Balance'}
               </div>
-              <div className={`font-bold text-sm sm:text-base ${telegramUser ? 'text-green-400' : 'text-yellow-400'}`}>
+              <div className={`font-bold text-sm sm:text-base ${isAuthenticated ? 'text-green-400' : 'text-yellow-400'}`}>
                 {playerBalance} pts
               </div>
             </div>
@@ -453,6 +454,13 @@ function App() {
           setIsAuthenticated(true);
           setUser(user);
           addNotification({ type: 'success', title: 'Welcome, Admin', message: user.username, duration: 2500 });
+          try {
+            // Reconnect WebSocket with fresh auth token so session is not guest
+            gameService.disconnect();
+            setTimeout(() => {
+              gameService.connect();
+            }, 200);
+          } catch (_) {}
         }}
       />
 
