@@ -46,6 +46,7 @@ model User {
   transactions      Transaction[]
   sessions          Session[]
   dailyLimits       DailyLimit[]
+  playerSettings    PlayerSettings?
   
   @@map("users")
 }
@@ -183,6 +184,24 @@ model DailyLimit {
   
   @@unique([userId, date])
   @@map("daily_limits")
+}
+
+// Per-player persistent settings
+model PlayerSettings {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+
+  // Gameplay preferences
+  autoCashoutEnabled   Boolean  @default(false)
+  autoCashoutMultiplier Decimal @default(2.0) @db.Decimal(8,2)
+  soundEnabled         Boolean  @default(true)
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("player_settings")
 }
 
 // Enums
