@@ -78,14 +78,15 @@ class AuthService {
         audience: 'aviator-players'
       });
 
-      // Check if session is still active
+      // If we track active sessions, prefer them; otherwise allow stateless JWTs
       const session = this.activeSessions.get(decoded.userId);
-      if (!session || session.token !== token) {
-        return { success: false, error: 'Session expired or invalid' };
+      if (session) {
+        if (session.token !== token) {
+          return { success: false, error: 'Session mismatch' };
+        }
+        // Update last activity for tracked sessions
+        session.lastActivity = new Date().toISOString();
       }
-
-      // Update last activity
-      session.lastActivity = new Date().toISOString();
 
       return { success: true, decoded };
     } catch (error) {
