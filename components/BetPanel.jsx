@@ -69,7 +69,8 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
         if (activeBet > 0) {
           return 'bg-gradient-to-r from-green-600 to-green-500 shadow-green-500/30';
         }
-        return 'bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 shadow-red-500/50';
+        // Suggestion: make the bet button green during betting to encourage action
+        return 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 shadow-green-500/50';
       case 'running':
         if (activeBet === 0) {
           return 'bg-gray-600 cursor-not-allowed shadow-gray-500/30';

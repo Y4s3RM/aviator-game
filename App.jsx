@@ -291,7 +291,20 @@ function App() {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-2 w-44 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50">
+                    <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50">
+                      {/* Sound toggle */}
+                      <div className="px-3 py-2 border-b border-gray-700 flex items-center justify-between">
+                        <span className="text-sm text-gray-300">Sound</span>
+                        <button
+                          onClick={() => {
+                            const newSoundState = soundEffects.toggleSound();
+                            setSoundEnabled(newSoundState);
+                          }}
+                          className={`w-9 h-5 rounded-full flex items-center ${soundEnabled ? 'bg-green-600' : 'bg-gray-600'}`}
+                        >
+                          <span className={`h-4 w-4 bg-white rounded-full transform transition-transform ${soundEnabled ? 'translate-x-4' : 'translate-x-1'}`}></span>
+                        </button>
+                      </div>
                       <button
                         onClick={() => setShowUserProfile(true)}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 rounded-t-lg"
