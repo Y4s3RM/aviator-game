@@ -248,6 +248,7 @@ export const TelegramButton = ({
   haptic = 'impact', 
   hapticStyle = 'medium',
   className = '',
+  unstyled = false,
   ...props 
 }) => {
   const { hapticFeedback } = useTelegramWebApp();
@@ -261,7 +262,7 @@ export const TelegramButton = ({
 
   return (
     <button
-      className={`telegram-button ${className}`}
+      className={`${unstyled ? '' : 'telegram-button'} ${className}`.trim()}
       onClick={handleClick}
       {...props}
     >
