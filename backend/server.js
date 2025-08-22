@@ -635,12 +635,8 @@ function startGameLoop() {
     // Record crashed bets (bets that didn't cash out)
     if (currentGameRound) {
       try {
-        for (const [userId, bet] of gameState.activeBets.entries()) {
-          const player = gameState.players.get(userId);
-          if (!bet.cashedOut && player && !player.isGuest) {
-            await databaseService.recordCrash(userId, currentGameRound.id);
-          }
-        }
+        // Handle all uncashed bets as crashed
+        await databaseService.crashBets(currentGameRound.id, gameState.crashPoint);
         
         // Complete the game round in database
         await databaseService.updateGameRoundStatus(currentGameRound.id, 'CRASHED', new Date());
@@ -859,26 +855,35 @@ async function handleBet(userId, amount) {
   
   if (amount > currentBalance) return;
 
+  let betId = null;
+  
   // Deduct bet amount
   if (player.isGuest) {
     player.guestBalance -= amount;
   } else {
-    // Update authenticated user's balance in database and record bet
-    const newBalance = player.user.balance - amount;
-    await databaseService.updateUserBalance(userId, newBalance);
-    
-    // Record the bet in database
+    // Use placeBet which handles balance update and bet recording
     if (currentGameRound) {
-      await databaseService.recordBet(userId, currentGameRound.id, amount, null, 'active');
+      try {
+        const bet = await databaseService.placeBet(userId, currentGameRound.id, amount);
+        betId = bet.id;
+        // Update cached user balance
+        player.user.balance = parseFloat(player.user.balance) - amount;
+      } catch (error) {
+        console.error('❌ Failed to place bet:', error);
+        player.ws.send(JSON.stringify({ 
+          type: 'error', 
+          data: { message: error.message || 'Failed to place bet' } 
+        }));
+        return;
+      }
     }
-    
-    player.user.balance = newBalance; // Update cached user data
   }
 
   gameState.activeBets.set(userId, {
     amount,
     cashedOut: false,
-    cashedOutMultiplier: 0
+    cashedOutMultiplier: 0,
+    betId
   });
 
   const newBalance = player.isGuest ? player.guestBalance : player.user.balance;
@@ -901,16 +906,24 @@ async function handleCashOut(userId) {
   if (player.isGuest) {
     player.guestBalance += winnings;
   } else {
-    // Update authenticated user's balance and bet record in database
-    const newBalance = player.user.balance + winnings;
-    await databaseService.updateUserBalance(userId, newBalance);
-    
-    // Update the bet record with cashout info
-    if (currentGameRound) {
-      await databaseService.recordCashout(userId, currentGameRound.id, gameState.multiplier, winnings);
+    // Use cashoutBet which handles balance update and bet recording
+    if (bet.betId) {
+      try {
+        await databaseService.cashoutBet(bet.betId, gameState.multiplier);
+        // Update cached user balance
+        player.user.balance = parseFloat(player.user.balance) + winnings;
+      } catch (error) {
+        console.error('❌ Failed to cashout bet:', error);
+        // Revert cashout state
+        bet.cashedOut = false;
+        bet.cashedOutMultiplier = 0;
+        player.ws.send(JSON.stringify({ 
+          type: 'error', 
+          data: { message: error.message || 'Failed to cashout' } 
+        }));
+        return;
+      }
     }
-    
-    player.user.balance = newBalance; // Update cached user data
   }
 
   const newBalance = player.isGuest ? player.guestBalance : player.user.balance;
