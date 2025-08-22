@@ -123,33 +123,16 @@ class ProvablyFairService {
   }
   
   /**
-   * Generate crash points with realistic distribution
-   * This ensures a good mix of low and high multipliers
+   * Generate crash points using pure provably fair algorithm
+   * NO MANIPULATION - uses only cryptographic randomness
    */
   generateRealisticCrashPoint() {
     const fairRound = this.generateFairRound();
-    let { crashPoint } = fairRound;
     
-    // Apply additional distribution logic to make it more engaging
-    // Most crashes should be between 1.0x and 5.0x with occasional high multipliers
-    const random = Math.random();
-    
-    if (random < 0.6) {
-      // 60% chance of crash between 1.0x and 3.0x
-      crashPoint = Math.min(crashPoint, 1.0 + Math.random() * 2.0);
-    } else if (random < 0.85) {
-      // 25% chance of crash between 3.0x and 10.0x
-      crashPoint = Math.min(crashPoint, 3.0 + Math.random() * 7.0);
-    } else if (random < 0.95) {
-      // 10% chance of crash between 10.0x and 50.0x
-      crashPoint = Math.min(crashPoint, 10.0 + Math.random() * 40.0);
-    }
-    // 5% chance of very high multiplier (keep original)
-    
-    return {
-      ...fairRound,
-      crashPoint: parseFloat(crashPoint.toFixed(2))
-    };
+    // Return the pure provably fair result - NO MANIPULATION
+    // The natural distribution from the algorithm already provides
+    // a good mix of multipliers based on mathematical probability
+    return fairRound;
   }
   
   /**

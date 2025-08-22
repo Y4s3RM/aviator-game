@@ -14,6 +14,9 @@ const databaseService = require('./services/databaseService');
 const provablyFairService = require('./services/provablyFairService');
 const authService = require('./authService');
 
+// Import error handling middleware
+const { AppError, asyncHandler, errorHandler, notFound } = require('./middleware/errorHandler');
+
 const app = express();
 const server = http.createServer(app);
 
@@ -510,9 +513,11 @@ function startGameLoop() {
     gameState.countdown = 5;
     
     // Generate new game round with provably fair crash point
-    const fairRound = provablyFairService.generateRealisticCrashPoint();
+    const fairRound = provablyFairService.generateFairRound();
     currentGameRound = await databaseService.createGameRound(fairRound.crashPoint);
     gameState.crashPoint = fairRound.crashPoint;
+    gameState.currentRoundHash = fairRound.serverSeedHash; // Show hash before round
+    gameState.currentRoundSeed = fairRound.serverSeed; // Reveal after crash
     gameState.activeBets.clear();
     console.log(`💰 Betting phase. Crash at ${gameState.crashPoint.toFixed(2)}x`);
     broadcastAll();
@@ -852,6 +857,10 @@ async function handleCashOut(userId) {
 // =============================================================================
 app.get('/api/health', (_,res)=>res.json({ status:'OK', players:gameState.players.size }));
 app.get('/api/game-state', (_,res)=>res.json({ state:gameState.state, multiplier:gameState.multiplier, countdown:gameState.countdown, players:gameState.players.size }));
+
+// Error handling middleware (must be last)
+app.use(notFound);
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3002;
 server.listen(PORT,()=>{ console.log(`Server on ${PORT}`);startGameLoop(); });

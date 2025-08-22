@@ -6,13 +6,18 @@ const databaseService = require('./services/databaseService');
 
 class AuthService {
   constructor() {
-    // In production, use environment variables for secrets
-    this.jwtSecret = process.env.JWT_SECRET || 'aviator-game-super-secret-key-change-in-production';
+    // Require JWT secret in production
+    if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET environment variable is required in production');
+    }
+    
+    this.jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'development' ? 'dev-only-secret' : null);
     this.jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
     this.refreshTokenExpiresIn = '30d';
     
-    // Store active sessions (in production, use Redis)
+    // Store active sessions with TTL (in production, use Redis)
     this.activeSessions = new Map();
+    this.sessionTTL = 24 * 60 * 60 * 1000; // 24 hours
   }
 
   // Generate JWT token
@@ -32,13 +37,19 @@ class AuthService {
         audience: 'aviator-players'
       });
 
-      // Store session
-      this.activeSessions.set(user.id, {
+      // Store session with expiration
+      const session = {
         token,
         userId: user.id,
         createdAt: new Date().toISOString(),
-        lastActivity: new Date().toISOString()
-      });
+        lastActivity: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + this.sessionTTL).toISOString()
+      };
+      
+      this.activeSessions.set(user.id, session);
+      
+      // Clean up old sessions periodically
+      this.cleanupExpiredSessions();
 
       console.log(`🎫 Generated token for user: ${user.username}`);
       return { success: true, token };
@@ -215,15 +226,31 @@ class AuthService {
 
   // Clean up expired sessions (call periodically)
   cleanupExpiredSessions() {
-    const now = Date.now();
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    const now = new Date().toISOString();
+    let cleanedCount = 0;
 
     for (const [userId, session] of this.activeSessions.entries()) {
-      const sessionAge = now - new Date(session.lastActivity).getTime();
-      if (sessionAge > maxAge) {
+      if (session.expiresAt && new Date(session.expiresAt) < new Date(now)) {
         this.activeSessions.delete(userId);
-        console.log(`🧹 Cleaned up expired session for user: ${userId}`);
+        cleanedCount++;
       }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`🧹 Cleaned up ${cleanedCount} expired sessions`);
+    }
+    
+    // Limit map size to prevent unbounded growth
+    const maxSessions = 10000;
+    if (this.activeSessions.size > maxSessions) {
+      // Remove oldest sessions
+      const sortedSessions = Array.from(this.activeSessions.entries())
+        .sort((a, b) => new Date(a[1].createdAt) - new Date(b[1].createdAt));
+      
+      const toRemove = sortedSessions.slice(0, this.activeSessions.size - maxSessions);
+      toRemove.forEach(([userId]) => this.activeSessions.delete(userId));
+      
+      console.log(`🧹 Removed ${toRemove.length} oldest sessions to maintain size limit`);
     }
   }
 
