@@ -19,7 +19,7 @@ const UserProfile = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      setUser(authService.getCurrentUser());
+      setUser(authService.getUser());
       if (activeTab === 'leaderboard') {
         loadLeaderboard();
       }
