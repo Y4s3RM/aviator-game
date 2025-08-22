@@ -61,8 +61,6 @@ const limiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  // Use the correct IP address when behind a proxy
-  keyGenerator: (req) => req.ip,
   handler: (req, res) => {
     res.status(429).json({
       error: 'Too many requests from this IP, please try again later.',
@@ -76,7 +74,6 @@ const authLimiter = rateLimit({
   max: 5, // limit each IP to 5 auth requests per windowMs
   message: 'Too many authentication attempts, please try again later.',
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
-  keyGenerator: (req) => req.ip,
 });
 
 // Settings endpoints need higher limits due to polling
@@ -85,7 +82,6 @@ const settingsLimiter = rateLimit({
   max: 300, // Higher limit for settings endpoints (polling every second)
   message: 'Too many settings requests, please try again later.',
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
-  keyGenerator: (req) => req.ip,
 });
 
 // Apply rate limiters (order matters - specific before general)
