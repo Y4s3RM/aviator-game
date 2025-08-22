@@ -273,6 +273,15 @@ class AuthService {
     const params = new URLSearchParams({ page, limit });
     return await this.apiRequest(`/admin/game-rounds?${params}`);
   }
+
+  // =============================================================================
+  // PUBLIC API METHODS
+  // =============================================================================
+
+  async getLeaderboard(type = 'balance', limit = 10) {
+    const params = new URLSearchParams({ type, limit });
+    return await this.apiRequest(`/leaderboard?${params}`);
+  }
 }
 
 // Export singleton instance
