@@ -70,12 +70,29 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
     // Initial load
     loadSettings();
     
-    // Poll for auth changes
-    const interval = setInterval(loadSettings, 1000);
+    // Listen for auth changes instead of polling
+    // Only reload settings when auth state actually changes
+    const handleAuthChange = () => {
+      if (mounted) {
+        loadSettings();
+      }
+    };
+    
+    // Check auth state every 30 seconds (much less frequent)
+    const interval = setInterval(handleAuthChange, 30000);
+    
+    // Also listen for visibility changes to reload when tab becomes active
+    const handleVisibilityChange = () => {
+      if (!document.hidden && mounted) {
+        loadSettings();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
       mounted = false;
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [settingsLoaded]);
 
