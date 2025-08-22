@@ -73,9 +73,15 @@ app.use(cors({
     if (!origin) return callback(null, true); // allow non-browser clients
     if (!isProduction) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
+    console.log(`❌ CORS blocked origin: ${origin}`);
+    console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
     return callback(new Error('CORS not allowed for this origin'));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -876,4 +882,9 @@ app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3002;
-server.listen(PORT,()=>{ console.log(`Server on ${PORT}`);startGameLoop(); });
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔐 CORS origins: ${allowedOrigins.join(', ') || 'development mode (all origins)'}`);
+  startGameLoop();
+});
