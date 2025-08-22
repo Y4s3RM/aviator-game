@@ -23,6 +23,14 @@ const server = http.createServer(app);
 // Trust proxy headers (required for Railway/Heroku/AWS)
 app.set('trust proxy', true);
 
+// Log all requests in development/debugging
+if (process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path} from ${req.ip}`);
+    next();
+  });
+}
+
 // Security middleware
 const isProduction = process.env.NODE_ENV === 'production';
 app.use(helmet({
@@ -102,23 +110,34 @@ const allowedOrigins = isProduction
   ? parseOrigins(process.env.CORS_ORIGINS)
   : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:3001'];
 
-app.use(cors({
+// CORS middleware with error handling
+const corsMiddleware = cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // allow non-browser clients
-    if (!isProduction) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    console.log(`❌ CORS blocked origin: ${origin}`);
-    console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
-    return callback(new Error('CORS not allowed for this origin'));
+    try {
+      if (!origin) return callback(null, true); // allow non-browser clients
+      if (!isProduction) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      console.log(`❌ CORS blocked origin: ${origin}`);
+      console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
+      return callback(new Error('CORS not allowed for this origin'));
+    } catch (error) {
+      console.error('CORS middleware error:', error);
+      return callback(error);
+    }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Sec-WebSocket-Protocol'],
   preflightContinue: false,
   optionsSuccessStatus: 204
-}));
+});
+
+app.use(corsMiddleware);
 
 app.use(express.json({ limit: '10mb' }));
+
+// Handle OPTIONS requests explicitly
+app.options('*', corsMiddleware);
 
 // =============================================================================
 // GAME STATE
@@ -922,10 +941,33 @@ app.get('/api/game-state', (_,res)=>res.json({ state:gameState.state, multiplier
 app.use(notFound);
 app.use(errorHandler);
 
+// Add error handler for uncaught errors
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
 const PORT = process.env.PORT || 3002;
+
+// Startup diagnostics
+console.log('🔧 Starting server with configuration:');
+console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+console.log(`   PORT: ${PORT}`);
+console.log(`   CORS_ORIGINS: ${process.env.CORS_ORIGINS || 'not set'}`);
+console.log(`   DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'not set'}`);
+
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔐 CORS origins: ${allowedOrigins.join(', ') || 'development mode (all origins)'}`);
+  console.log('✅ Server started successfully');
   startGameLoop();
+}).on('error', (err) => {
+  console.error('❌ Server failed to start:', err);
+  process.exit(1);
 });
