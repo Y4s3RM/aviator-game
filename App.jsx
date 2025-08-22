@@ -295,16 +295,6 @@ function App() {
                     <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50">
                       {/* Sound control */}
                       <button
-                        onClick={() => {
-                          const newSoundState = soundEffects.toggleSound();
-                          setSoundEnabled(newSoundState);
-                        }}
-                        className="w-full flex items-center px-3 py-2 text-sm hover:bg-gray-700 border-b border-gray-700"
-                      >
-                        <span className="mr-2">{soundEnabled ? '🔊' : '🔇'}</span>
-                        <span> {soundEnabled ? 'On' : 'Off'}</span>
-                      </button>
-                      <button
                         onClick={async () => {
                           const newSoundState = soundEffects.toggleSound();
                           setSoundEnabled(newSoundState);
@@ -318,7 +308,7 @@ function App() {
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 rounded-t-lg"
                       >
                         <span className="mr-2">{soundEnabled ? '🔊' : '🔇'}</span>
-                        <span> Sound {soundEnabled ? 'On' : 'Off'}</span>
+                        <span> {soundEnabled ? 'On' : 'Off'}</span>
                       </button>
                       <button
                         onClick={() => setShowUserProfile(true)}
