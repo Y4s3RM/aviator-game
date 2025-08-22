@@ -124,12 +124,43 @@ function App() {
 
     initializeAuth();
 
+    // Poll for auth changes (for Telegram authentication)
+    const authCheckInterval = setInterval(() => {
+      const isAuth = authService.isAuthenticated();
+      const currentUser = authService.getUser();
+      
+      // Check if auth state changed
+      if (isAuth !== isAuthenticated) {
+        setIsAuthenticated(isAuth);
+        setUser(currentUser);
+        
+        if (isAuth && currentUser) {
+          // User just logged in
+          addNotification({
+            type: 'success',
+            title: 'Logged in!',
+            message: `Welcome, ${currentUser.username}`,
+            duration: 3000
+          });
+          
+          // Reconnect WebSocket with new auth token
+          gameService.disconnect();
+          gameService.connect();
+        }
+      } else if (isAuth && currentUser?.id !== user?.id) {
+        // User changed
+        setUser(currentUser);
+      }
+    }, 1000); // Check every second
+
     // If URL has ?admin=1 and not already authenticated as admin, open admin login
     const params = new URLSearchParams(window.location.search);
     if (params.get('admin') === '1' && !(authService.isAuthenticated() && authService.isAdmin())) {
       setShowAdminLogin(true);
     }
-  }, [addNotification]);
+    
+    return () => clearInterval(authCheckInterval);
+  }, [addNotification, isAuthenticated, user]);
 
   // Debug crash history and connection
   console.log('🎯 App crashHistory:', crashHistory, 'length:', crashHistory?.length);
