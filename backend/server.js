@@ -20,6 +20,9 @@ const { AppError, asyncHandler, errorHandler, notFound } = require('./middleware
 const app = express();
 const server = http.createServer(app);
 
+// Trust proxy headers (required for Railway/Heroku/AWS)
+app.set('trust proxy', true);
+
 // Security middleware
 const isProduction = process.env.NODE_ENV === 'production';
 app.use(helmet({
@@ -50,6 +53,14 @@ const limiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  // Use the correct IP address when behind a proxy
+  keyGenerator: (req) => req.ip,
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Too many requests from this IP, please try again later.',
+      retryAfter: req.rateLimit.resetTime
+    });
+  }
 });
 
 const authLimiter = rateLimit({
@@ -57,6 +68,7 @@ const authLimiter = rateLimit({
   max: 5, // limit each IP to 5 auth requests per windowMs
   message: 'Too many authentication attempts, please try again later.',
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
+  keyGenerator: (req) => req.ip,
 });
 
 // Settings endpoints need higher limits due to polling
@@ -65,6 +77,7 @@ const settingsLimiter = rateLimit({
   max: 300, // Higher limit for settings endpoints (polling every second)
   message: 'Too many settings requests, please try again later.',
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
+  keyGenerator: (req) => req.ip,
 });
 
 app.use('/api/player/settings', settingsLimiter);
