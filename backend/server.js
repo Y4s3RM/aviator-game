@@ -887,7 +887,14 @@ async function handleCashOut(userId) {
 // =============================================================================
 // REST API
 // =============================================================================
-app.get('/api/health', (_,res)=>res.json({ status:'OK', players:gameState.players.size }));
+app.get('/api/health', (_, res) => {
+  res.json({ 
+    status: 'OK', 
+    players: gameState.players.size,
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
+});
 app.get('/api/game-state', (_,res)=>res.json({ state:gameState.state, multiplier:gameState.multiplier, countdown:gameState.countdown, players:gameState.players.size }));
 
 // Error handling middleware (must be last)
