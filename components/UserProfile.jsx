@@ -112,7 +112,7 @@ const UserProfile = ({ isOpen, onClose }) => {
     }
   };
 
-  if (!isOpen || !user) return null;
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -121,11 +121,13 @@ const UserProfile = ({ isOpen, onClose }) => {
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-lg font-bold">{user.username[0].toUpperCase()}</span>
+              <span className="text-lg font-bold">{(user?.username?.[0] || 'G').toUpperCase()}</span>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">{user.username}</h2>
-              <p className="text-sm text-gray-400">Level {user.level} • {user.role}</p>
+              <h2 className="text-xl font-bold text-white">{user?.username || 'Guest'}</h2>
+              {user && (
+                <p className="text-sm text-gray-400">Level {user.level} • {user.role}</p>
+              )}
             </div>
           </div>
           <button
@@ -162,9 +164,18 @@ const UserProfile = ({ isOpen, onClose }) => {
 
         {/* Content */}
         <div className="p-4 overflow-y-auto max-h-[60vh]">
+          {!user && (
+            <div className="space-y-4">
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-2">Guest Profile</h3>
+                <p className="text-gray-300 text-sm">You are playing in guest mode. Log in or register to save progress and access security settings.</p>
+              </div>
+            </div>
+          )}
           {activeTab === 'profile' && (
             <div className="space-y-6">
               {/* Account Stats */}
+              {user && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-gray-800 rounded-lg p-4 text-center">
                   <div className="text-2xl font-bold text-green-400">{formatCurrency(user.balance)}</div>
@@ -183,8 +194,10 @@ const UserProfile = ({ isOpen, onClose }) => {
                   <div className="text-sm text-gray-400">Level</div>
                 </div>
               </div>
+              )}
 
               {/* Detailed Stats */}
+              {user && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-gray-800 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-4">💰 Financial Stats</h3>
@@ -232,8 +245,10 @@ const UserProfile = ({ isOpen, onClose }) => {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Account Info */}
+              {user && (
               <div className="bg-gray-800 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-4">📧 Account Information</h3>
                 <div className="space-y-3">
@@ -255,10 +270,11 @@ const UserProfile = ({ isOpen, onClose }) => {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           )}
 
-          {activeTab === 'security' && (
+          {activeTab === 'security' && user && (
             <div className="space-y-6">
               {/* Change Password */}
               <div className="bg-gray-800 rounded-lg p-4">
