@@ -80,9 +80,17 @@ const settingsLimiter = rateLimit({
   keyGenerator: (req) => req.ip,
 });
 
+// Apply rate limiters (order matters - specific before general)
 app.use('/api/player/settings', settingsLimiter);
 app.use('/api/auth/', authLimiter);
-app.use('/api/', limiter);
+
+// Exclude health and game-state endpoints from rate limiting
+app.use('/api/', (req, res, next) => {
+  if (req.path === '/health' || req.path === '/game-state') {
+    return next();
+  }
+  limiter(req, res, next);
+});
 
 // CORS: allowlist via env in production; permissive in dev
 const parseOrigins = (val) => (val || '')
