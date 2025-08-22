@@ -123,9 +123,9 @@ function App() {
 
     initializeAuth();
 
-    // If URL has ?admin=1, open admin login
+    // If URL has ?admin=1 and not already authenticated as admin, open admin login
     const params = new URLSearchParams(window.location.search);
-    if (params.get('admin') === '1') {
+    if (params.get('admin') === '1' && !(authService.isAuthenticated() && authService.isAdmin())) {
       setShowAdminLogin(true);
     }
   }, [addNotification]);
@@ -437,7 +437,7 @@ function App() {
 
       {/* Admin Login Modal */}
       <AdminLoginModal
-        isOpen={showAdminLogin}
+        isOpen={showAdminLogin && !(isAuthenticated && authService.isAdmin())}
         onClose={() => setShowAdminLogin(false)}
         onSuccess={(user) => {
           setIsAuthenticated(true);
