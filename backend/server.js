@@ -119,6 +119,7 @@ app.post('/api/auth/telegram', [
         username: telegramUser.username || `user_${telegramUser.id}`,
         firstName: telegramUser.first_name,
         lastName: telegramUser.last_name,
+        avatar: telegramUser.photo_url,
         languageCode: telegramUser.language_code
       });
       
@@ -128,8 +129,19 @@ app.post('/api/auth/telegram', [
       
       user = result.user;
     } else {
-      // Update last login time
-      await databaseService.updateUser(user.id, { lastLoginAt: new Date() });
+      // Update last login time and enrich any missing fields from Telegram payload
+      const updates = { lastLoginAt: new Date() };
+      if (!user.avatar && telegramUser.photo_url) updates.avatar = telegramUser.photo_url;
+      if (!user.firstName && telegramUser.first_name) updates.firstName = telegramUser.first_name;
+      if (!user.lastName && telegramUser.last_name) updates.lastName = telegramUser.last_name;
+      // If username was empty, set it. Do not overwrite existing username to avoid collisions
+      if (!user.username && telegramUser.username) updates.username = telegramUser.username;
+      if (Object.keys(updates).length > 0) {
+        const r = await databaseService.updateUser(user.id, updates);
+        if (r.success) {
+          user = r.user;
+        }
+      }
     }
 
     // Generate tokens
