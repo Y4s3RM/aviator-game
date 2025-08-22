@@ -21,7 +21,8 @@ const app = express();
 const server = http.createServer(app);
 
 // Trust proxy headers (required for Railway/Heroku/AWS)
-app.set('trust proxy', true);
+// Use specific number of proxies or loopback for Railway
+app.set('trust proxy', 'loopback');
 
 // Log all requests in development/debugging
 if (process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development') {
@@ -61,6 +62,7 @@ const limiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  validate: false, // Disable validation for production deployments
   handler: (req, res) => {
     res.status(429).json({
       error: 'Too many requests from this IP, please try again later.',
@@ -74,6 +76,7 @@ const authLimiter = rateLimit({
   max: 5, // limit each IP to 5 auth requests per windowMs
   message: 'Too many authentication attempts, please try again later.',
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
+  validate: false, // Disable validation for production deployments
 });
 
 // Settings endpoints need higher limits due to polling
@@ -82,6 +85,7 @@ const settingsLimiter = rateLimit({
   max: 300, // Higher limit for settings endpoints (polling every second)
   message: 'Too many settings requests, please try again later.',
   skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
+  validate: false, // Disable validation for production deployments
 });
 
 // Apply rate limiters (order matters - specific before general)
