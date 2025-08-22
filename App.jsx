@@ -310,7 +310,9 @@ function App() {
                           setSoundEnabled(newSoundState);
                           try {
                             const auth = (await import('./components/services/authService.js')).default;
-                            await auth.updatePlayerSettings({ soundEnabled: newSoundState });
+                            if (auth.getAuthToken()) {
+                              await auth.updatePlayerSettings({ soundEnabled: newSoundState });
+                            }
                           } catch (_) {}
                         }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 rounded-t-lg"

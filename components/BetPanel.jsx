@@ -34,7 +34,9 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
     let mounted = true;
     (async () => {
       try {
-        const res = await (await import('./services/authService.js')).default.getPlayerSettings();
+        const auth = (await import('./services/authService.js')).default;
+        if (!auth.getAuthToken()) return; // Skip for guests
+        const res = await auth.getPlayerSettings();
         if (mounted && res?.success && res.settings) {
           if (typeof res.settings.autoCashoutEnabled === 'boolean') setAutoCashoutEnabled(res.settings.autoCashoutEnabled);
           if (res.settings.autoCashoutMultiplier) setAutoCashoutMultiplier(parseFloat(res.settings.autoCashoutMultiplier));
@@ -49,6 +51,7 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
     const handle = setTimeout(async () => {
       try {
         const auth = (await import('./services/authService.js')).default;
+        if (!auth.getAuthToken()) return; // Skip for guests
         await auth.updatePlayerSettings({
           autoCashoutEnabled,
           autoCashoutMultiplier: Number(autoCashoutMultiplier)
