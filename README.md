@@ -183,3 +183,5 @@ Add PostgreSQL database (essential)
 Move game logic to server (security)
 Implement provably fair (trust)
 Add proper authentication (Telegram integration)
+
+https://t.me/aviador_game_test_bot/app?startapp=v2025-08-21-01

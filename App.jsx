@@ -301,7 +301,7 @@ function App() {
                         className="w-full flex items-center px-3 py-2 text-sm hover:bg-gray-700 border-b border-gray-700"
                       >
                         <span className="mr-2">{soundEnabled ? '🔊' : '🔇'}</span>
-                        <span>Sound {soundEnabled ? 'On' : 'Off'}</span>
+                        <span> {soundEnabled ? 'On' : 'Off'}</span>
                       </button>
                       <button
                         onClick={() => setShowUserProfile(true)}
@@ -321,21 +321,6 @@ function App() {
                   )}
                 </div>
               }
-
-              <button 
-                onClick={() => {
-                  const newSoundState = soundEffects.toggleSound();
-                  setSoundEnabled(newSoundState);
-                }}
-                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-colors ${
-                  soundEnabled 
-                    ? 'bg-green-600 text-white hover:bg-green-700' 
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-                title={soundEnabled ? 'Sound: ON' : 'Sound: OFF'}
-              >
-                <span className="text-xs sm:text-sm">{soundEnabled ? '🔊' : '🔇'}</span>
-              </button>
               
               <button 
                 onClick={() => setShowStatsPanel(true)}
