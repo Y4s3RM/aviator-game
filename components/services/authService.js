@@ -282,6 +282,18 @@ class AuthService {
     const params = new URLSearchParams({ type, limit });
     return await this.apiRequest(`/leaderboard?${params}`);
   }
+
+  // Player settings
+  async getPlayerSettings() {
+    return await this.apiRequest('/player/settings');
+  }
+
+  async updatePlayerSettings(partial) {
+    return await this.apiRequest('/player/settings', {
+      method: 'PUT',
+      body: JSON.stringify(partial)
+    });
+  }
 }
 
 // Export singleton instance

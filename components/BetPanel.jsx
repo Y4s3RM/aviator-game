@@ -6,7 +6,7 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
   // Telegram WebApp integration
   const { hapticFeedback, showAlert } = useTelegramWebApp();
   
-  // Auto-cashout state
+  // Auto-cashout state (persisted)
   const [autoCashoutEnabled, setAutoCashoutEnabled] = useState(false);
   const [autoCashoutMultiplier, setAutoCashoutMultiplier] = useState(2.0);
   const [showAutoCashoutSettings, setShowAutoCashoutSettings] = useState(false);
@@ -28,6 +28,35 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
       }
     }
   }, [multiplier, autoCashoutEnabled, autoCashoutMultiplier, gameState, activeBet, cashedOutMultiplier, onCashOut]);
+
+  // Load persisted settings on mount
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await (await import('./services/authService.js')).default.getPlayerSettings();
+        if (mounted && res?.success && res.settings) {
+          if (typeof res.settings.autoCashoutEnabled === 'boolean') setAutoCashoutEnabled(res.settings.autoCashoutEnabled);
+          if (res.settings.autoCashoutMultiplier) setAutoCashoutMultiplier(parseFloat(res.settings.autoCashoutMultiplier));
+        }
+      } catch (_) {}
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // Persist changes (debounced)
+  useEffect(() => {
+    const handle = setTimeout(async () => {
+      try {
+        const auth = (await import('./services/authService.js')).default;
+        await auth.updatePlayerSettings({
+          autoCashoutEnabled,
+          autoCashoutMultiplier: Number(autoCashoutMultiplier)
+        });
+      } catch (_) {}
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [autoCashoutEnabled, autoCashoutMultiplier]);
   const handleDecrease = () => {
     setBetAmount(prev => Math.max(100, prev - 100));
   };

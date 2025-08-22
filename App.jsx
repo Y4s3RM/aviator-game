@@ -304,6 +304,20 @@ function App() {
                         <span> {soundEnabled ? 'On' : 'Off'}</span>
                       </button>
                       <button
+                        onClick={async () => {
+                          const newSoundState = soundEffects.toggleSound();
+                          setSoundEnabled(newSoundState);
+                          try {
+                            const auth = (await import('./components/services/authService.js')).default;
+                            await auth.updatePlayerSettings({ soundEnabled: newSoundState });
+                          } catch (_) {}
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 rounded-t-lg"
+                      >
+                        <span className="mr-2">{soundEnabled ? '🔊' : '🔇'}</span>
+                        <span> Sound {soundEnabled ? 'On' : 'Off'}</span>
+                      </button>
+                      <button
                         onClick={() => setShowUserProfile(true)}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 rounded-t-lg"
                       >
