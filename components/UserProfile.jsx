@@ -90,7 +90,10 @@ const UserProfile = ({ isOpen, onClose }) => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return '-';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -100,7 +103,8 @@ const UserProfile = ({ isOpen, onClose }) => {
   };
 
   const formatCurrency = (amount) => {
-    return amount.toLocaleString() + ' pts';
+    const n = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+    return n.toLocaleString() + ' pts';
   };
 
   const getRankIcon = (index) => {
@@ -186,7 +190,7 @@ const UserProfile = ({ isOpen, onClose }) => {
                   <div className="text-sm text-gray-400">Games Played</div>
                 </div>
                 <div className="bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-yellow-400">{user.winRate.toFixed(1)}%</div>
+                  <div className="text-2xl font-bold text-yellow-400">{Number(user?.winRate ?? 0).toFixed(1)}%</div>
                   <div className="text-sm text-gray-400">Win Rate</div>
                 </div>
                 <div className="bg-gray-800 rounded-lg p-4 text-center">
@@ -409,7 +413,7 @@ const UserProfile = ({ isOpen, onClose }) => {
                       <div className="text-right">
                         <div className="font-medium text-white">
                           {leaderboardType === 'winRate' 
-                            ? `${player[leaderboardType].toFixed(1)}%`
+                            ? `${Number(player[leaderboardType] ?? 0).toFixed(1)}%`
                             : formatCurrency(player[leaderboardType])
                           }
                         </div>
