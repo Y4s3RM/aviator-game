@@ -1,3 +1,4 @@
+const { PrismaClient, Prisma } = require('@prisma/client');
 const prisma = require('../lib/prisma');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
@@ -44,7 +45,7 @@ class DatabaseService {
           data: {
             userId: user.id,
             autoCashoutEnabled: false,
-            autoCashoutMultiplier: new prisma.Prisma.Decimal(2.0),
+            autoCashoutMultiplier: new Prisma.Decimal(2.0),
             soundEnabled: true,
           }
         });
@@ -78,21 +79,21 @@ class DatabaseService {
         where: { userId },
         update: {
           ...('autoCashoutEnabled' in partialSettings ? { autoCashoutEnabled: partialSettings.autoCashoutEnabled } : {}),
-          ...('autoCashoutMultiplier' in partialSettings ? { autoCashoutMultiplier: new prisma.Prisma.Decimal(partialSettings.autoCashoutMultiplier) } : {}),
+          ...('autoCashoutMultiplier' in partialSettings ? { autoCashoutMultiplier: new Prisma.Decimal(partialSettings.autoCashoutMultiplier) } : {}),
           ...('soundEnabled' in partialSettings ? { soundEnabled: partialSettings.soundEnabled } : {}),
           ...('dailyLimitsEnabled' in partialSettings ? { dailyLimitsEnabled: partialSettings.dailyLimitsEnabled } : {}),
-          ...('maxDailyWager' in partialSettings ? { maxDailyWager: new prisma.Prisma.Decimal(partialSettings.maxDailyWager) } : {}),
-          ...('maxDailyLoss' in partialSettings ? { maxDailyLoss: new prisma.Prisma.Decimal(partialSettings.maxDailyLoss) } : {}),
+          ...('maxDailyWager' in partialSettings ? { maxDailyWager: new Prisma.Decimal(partialSettings.maxDailyWager) } : {}),
+          ...('maxDailyLoss' in partialSettings ? { maxDailyLoss: new Prisma.Decimal(partialSettings.maxDailyLoss) } : {}),
           ...('maxGamesPerDay' in partialSettings ? { maxGamesPerDay: partialSettings.maxGamesPerDay } : {}),
         },
         create: {
           userId,
           autoCashoutEnabled: !!partialSettings.autoCashoutEnabled,
-          autoCashoutMultiplier: new prisma.Prisma.Decimal(partialSettings.autoCashoutMultiplier ?? 2.0),
+          autoCashoutMultiplier: new Prisma.Decimal(partialSettings.autoCashoutMultiplier ?? 2.0),
           soundEnabled: 'soundEnabled' in partialSettings ? !!partialSettings.soundEnabled : true,
           dailyLimitsEnabled: 'dailyLimitsEnabled' in partialSettings ? !!partialSettings.dailyLimitsEnabled : true,
-          maxDailyWager: new prisma.Prisma.Decimal(partialSettings.maxDailyWager ?? 10000),
-          maxDailyLoss: new prisma.Prisma.Decimal(partialSettings.maxDailyLoss ?? 5000),
+          maxDailyWager: new Prisma.Decimal(partialSettings.maxDailyWager ?? 10000),
+          maxDailyLoss: new Prisma.Decimal(partialSettings.maxDailyLoss ?? 5000),
           maxGamesPerDay: partialSettings.maxGamesPerDay ?? 100,
         }
       });
