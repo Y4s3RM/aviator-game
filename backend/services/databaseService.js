@@ -340,7 +340,10 @@ class DatabaseService {
         
         await tx.user.update({
           where: { id: userId },
-          data: { balance: balanceAfter }
+          data: { 
+            balance: balanceAfter,
+            totalWagered: { increment: amount }
+          }
         });
         
         // Create bet
@@ -415,7 +418,8 @@ class DatabaseService {
           data: { 
             balance: balanceAfter,
             totalWon: { increment: payout },
-            biggestWin: { set: Math.max(parseFloat(bet.user.biggestWin), payout) }
+            biggestWin: { set: Math.max(parseFloat(bet.user.biggestWin), payout) },
+            gamesPlayed: { increment: 1 }
           }
         });
         
