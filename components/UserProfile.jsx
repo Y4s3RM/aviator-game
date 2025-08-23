@@ -148,7 +148,7 @@ const UserProfile = ({ isOpen, onClose }) => {
         <div className="flex border-b border-gray-700">
           {[
             { id: 'profile', label: 'Profile', icon: '👤' },
-            { id: 'security', label: 'Security', icon: '🔐' },
+            ...(user?.telegramId ? [] : [{ id: 'security', label: 'Security', icon: '🔐' }]),
             { id: 'leaderboard', label: 'Leaderboard', icon: '🏆' }
           ].map(tab => (
             <button
@@ -278,7 +278,7 @@ const UserProfile = ({ isOpen, onClose }) => {
             </div>
           )}
 
-          {activeTab === 'security' && user && (
+          {activeTab === 'security' && user && !user.telegramId && (
             <div className="space-y-6">
               {/* Change Password */}
               <div className="bg-gray-800 rounded-lg p-4">
