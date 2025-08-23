@@ -4,12 +4,20 @@ const UpdateChecker = () => {
   const [hasUpdate, setHasUpdate] = useState(false);
   const [checking, setChecking] = useState(false);
   
-  // Don't run in development
+  // Configuration based on environment
   const isDev = window.location.hostname === 'localhost' || 
                 window.location.hostname === '127.0.0.1';
+  
+  // Check environment variable or URL pattern
+  const isTestingEnv = import.meta.env.VITE_ENABLE_AUTO_UPDATE === 'true' ||
+                       (window.location.hostname.includes('aviator-game') && 
+                        window.location.hostname.includes('vercel.app'));
+  
+  // Enable only for non-dev testing environments
+  const isEnabled = !isDev && isTestingEnv;
 
   const checkForUpdates = async () => {
-    if (isDev) return; // Skip in development
+    if (!isEnabled) return; // Skip if not enabled
     
     try {
       setChecking(true);
@@ -41,7 +49,7 @@ const UpdateChecker = () => {
   };
 
   useEffect(() => {
-    if (isDev) return; // Skip in development
+    if (!isEnabled) return; // Skip if not enabled
     
     // Check on mount
     checkForUpdates();
@@ -132,7 +140,18 @@ const UpdateChecker = () => {
     setTimeout(checkForUpdates, 300000);
   };
 
-  if (!hasUpdate || isDev) return null;
+  // Debug mode - show status in development/testing
+  const showDebug = window.location.search.includes('debug=updates');
+  
+  if (showDebug && !hasUpdate) {
+    return (
+      <div className="fixed bottom-2 right-2 bg-gray-800 text-white p-2 rounded text-xs opacity-50">
+        Auto-update: {isEnabled ? '✅ ON' : '❌ OFF'}
+      </div>
+    );
+  }
+
+  if (!hasUpdate || !isEnabled) return null;
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-green-600 to-green-700 text-white p-2 text-center">
