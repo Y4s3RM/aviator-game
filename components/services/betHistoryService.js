@@ -231,6 +231,15 @@ class BetHistoryService {
 
   // Get statistics
   getStats() {
+    // Clean up any orphaned active bets (older than 5 minutes)
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    this.history.forEach(bet => {
+      if (bet.status === 'active' && new Date(bet.timestamp).getTime() < fiveMinutesAgo) {
+        console.log('Cleaning up orphaned bet:', bet.id);
+        this.recordBetOutcome(bet.id, 1.0, 0); // Mark as lost at 1.0x
+      }
+    });
+    
     const winRate = this.stats.totalBets > 0 ? 
       (this.history.filter(b => b.status === 'won').length / this.stats.totalBets * 100) : 0;
     

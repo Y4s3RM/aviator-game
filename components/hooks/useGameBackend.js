@@ -71,8 +71,8 @@ export function useGameBackend() {
         setBalance(d.balance);
         
         // Handle crashed bets (when game crashes and player had active bet but didn't cash out)
-        if (d.state === 'crashed' && currentBetId && !d.cashedOut && d.hasActiveBet) {
-          console.log('💥 Recording crashed bet:', currentBetId);
+        if (d.state === 'crashed' && currentBetId && !cashedOut) {
+          console.log('💥 Recording crashed bet:', currentBetId, 'at multiplier:', d.multiplier);
           betHistoryService.recordBetOutcome(currentBetId, d.multiplier, 0); // 0 winnings = loss
           setCurrentBetId(null);
         }
@@ -91,8 +91,8 @@ export function useGameBackend() {
       setBalance(d.balance);
       
       // Handle crashed bets (when game crashes and player had active bet but didn't cash out)
-      if (gameState === 'crashed' && currentBetId && !d.cashedOut && d.hasActiveBet) {
-        console.log('💥 Recording crashed bet:', currentBetId);
+      if (gameState === 'crashed' && currentBetId && !cashedOut) {
+        console.log('💥 Recording crashed bet:', currentBetId, 'at multiplier:', multiplier);
         betHistoryService.recordBetOutcome(currentBetId, multiplier, 0); // 0 winnings = loss
         setCurrentBetId(null);
       }
