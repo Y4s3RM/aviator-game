@@ -20,13 +20,7 @@ const StatsPanel = ({ isOpen, onClose }) => {
     fetchSettings
   } = usePlayerSettings();
 
-  // Load data when panel opens or settings change
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-    }
-  }, [isOpen, loadData]);
-
+  // Define loadData before using it in useEffect
   const loadData = React.useCallback(() => {
     setStats(betHistoryService.getStats());
     setHistory(betHistoryService.getRecentHistory(100));
@@ -48,6 +42,13 @@ const StatsPanel = ({ isOpen, onClose }) => {
     
     setDailyLimits(betHistoryService.getDailyLimitsStatus());
   }, [dailyLimitsEnabled, maxDailyWager, maxDailyLoss, maxGamesPerDay]);
+
+  // Load data when panel opens or settings change
+  useEffect(() => {
+    if (isOpen) {
+      loadData();
+    }
+  }, [isOpen, loadData]);
 
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
