@@ -9,7 +9,7 @@ export function usePlayerSettings() {
   const mountedRef = useRef(true);
 
   const fetchSettings = useCallback(async () => {
-    const token = authService.getStoredToken();
+    const token = authService.getToken();
     if (!token || !mountedRef.current) return;
     
     setLoading(true);
@@ -51,7 +51,7 @@ export function usePlayerSettings() {
   }, []);
 
   const saveSettings = useCallback(async (patch) => {
-    const token = authService.getStoredToken();
+    const token = authService.getToken();
     if (!token) return { success: false, error: 'Not authenticated' };
     
     try {
