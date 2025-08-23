@@ -576,6 +576,26 @@ app.get('/api/player/settings',
   }
 );
 
+// TEMPORARY DEBUG PROBE - Remove after testing
+app.put('/api/player/settings', 
+  authService.authenticateToken.bind(authService),
+  async (req, res) => {
+    console.log('🔍 DEBUG: PUT /api/player/settings probe');
+    console.log('  - User ID:', req.user?.id);
+    console.log('  - User object:', req.user);
+    console.log('  - Request body:', req.body);
+    console.log('  - Headers:', req.headers);
+    return res.json({ 
+      debug: true,
+      seenUserId: req.user?.id, 
+      echoed: req.body,
+      timestamp: new Date().toISOString()
+    });
+  }
+);
+
+// Original implementation (commented out for testing)
+/*
 app.put('/api/player/settings', 
   authService.authenticateToken.bind(authService),
   settingsWriteLimiter,
@@ -612,6 +632,7 @@ app.put('/api/player/settings',
     }
   }
 );
+*/
 
 // Crash point generation now uses provably fair system
 let currentGameRound = null;
@@ -1064,6 +1085,15 @@ console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 console.log(`   PORT: ${PORT}`);
 console.log(`   CORS_ORIGINS: ${process.env.CORS_ORIGINS || 'not set'}`);
 console.log(`   DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'not set'}`);
+if (process.env.DATABASE_URL) {
+  try {
+    const dbUrl = new URL(process.env.DATABASE_URL);
+    console.log(`   DB Host: ${dbUrl.host}`);
+    console.log(`   DB Name: ${dbUrl.pathname.slice(1)}`);
+  } catch (e) {
+    console.log('   DB URL parsing failed');
+  }
+}
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
