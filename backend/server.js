@@ -54,6 +54,44 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
+// CORS: allowlist via env in production; permissive in dev
+const parseOrigins = (val) => (val || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+const allowedOrigins = isProduction
+  ? parseOrigins(process.env.CORS_ORIGINS)
+  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:3001'];
+
+// CORS middleware with error handling
+const corsMiddleware = cors({
+  origin: (origin, callback) => {
+    try {
+      if (!origin) return callback(null, true); // allow non-browser clients
+      if (!isProduction) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      console.log(`❌ CORS blocked origin: ${origin}`);
+      console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
+      return callback(new Error('CORS not allowed for this origin'));
+    } catch (error) {
+      console.error('CORS middleware error:', error);
+      return callback(error);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Sec-WebSocket-Protocol'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+});
+
+// Apply CORS before rate limiting so error responses include CORS headers
+app.use(corsMiddleware);
+
+// Handle OPTIONS requests explicitly
+app.options('*', corsMiddleware);
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -100,44 +138,7 @@ app.use('/api/', (req, res, next) => {
   limiter(req, res, next);
 });
 
-// CORS: allowlist via env in production; permissive in dev
-const parseOrigins = (val) => (val || '')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
-
-const allowedOrigins = isProduction
-  ? parseOrigins(process.env.CORS_ORIGINS)
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:3001'];
-
-// CORS middleware with error handling
-const corsMiddleware = cors({
-  origin: (origin, callback) => {
-    try {
-      if (!origin) return callback(null, true); // allow non-browser clients
-      if (!isProduction) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      console.log(`❌ CORS blocked origin: ${origin}`);
-      console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
-      return callback(new Error('CORS not allowed for this origin'));
-    } catch (error) {
-      console.error('CORS middleware error:', error);
-      return callback(error);
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Sec-WebSocket-Protocol'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-});
-
-app.use(corsMiddleware);
-
 app.use(express.json({ limit: '10mb' }));
-
-// Handle OPTIONS requests explicitly
-app.options('*', corsMiddleware);
 
 // =============================================================================
 // GAME STATE
