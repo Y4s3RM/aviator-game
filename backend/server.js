@@ -539,6 +539,22 @@ app.get('/api/admin/game-rounds', requireAdmin, async (req, res) => {
 // PUBLIC ROUTES
 // =============================================================================
 
+// Get recent rounds for fairness verification
+app.get('/api/fairness/recent-rounds', async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const rounds = await databaseService.getRecentRoundsForFairness(parseInt(limit));
+    
+    res.json({
+      success: true,
+      rounds
+    });
+  } catch (error) {
+    console.error('❌ Fairness rounds error:', error);
+    res.status(500).json({ error: 'Failed to get recent rounds' });
+  }
+});
+
 // Get leaderboard
 app.get('/api/leaderboard', authService.optionalAuth.bind(authService), async (req, res) => {
   try {

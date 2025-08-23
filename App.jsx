@@ -11,6 +11,7 @@ import AuthModal from './components/AuthModal.jsx';
 import AdminLoginModal from './components/AdminLoginModal.jsx';
 import UserProfile from './components/UserProfile.jsx';
 import RanksPanel from './components/RanksPanel.jsx';
+import FairnessPage from './components/FairnessPage.jsx';
 import { useGameBackend } from './components/hooks/useGameBackend.js';
 import soundEffects from './components/utils/soundEffects.js';
 import authService from './components/services/authService.js';
@@ -57,6 +58,7 @@ function App() {
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [showRanksPanel, setShowRanksPanel] = useState(false);
   const [activeNavTab, setActiveNavTab] = useState('Play');
+  const [showFairnessPage, setShowFairnessPage] = useState(false);
   const [prevGameState, setPrevGameState] = useState(gameState);
   const [prevCountdown, setPrevCountdown] = useState(countdown);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -418,6 +420,14 @@ function App() {
               </button>
 
               <button 
+                onClick={() => setShowFairnessPage(true)}
+                className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-700 text-gray-300 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
+                title="Provably Fair Verification"
+              >
+                <span className="text-xs sm:text-sm">🎲</span>
+              </button>
+
+              <button 
                 onClick={() => setShowBackendTest(true)}
                 className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-700 text-gray-300 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
                 title="Debug: Show Backend Test"
@@ -523,6 +533,12 @@ function App() {
           setShowRanksPanel(false);
           setActiveNavTab('Play');
         }}
+      />
+
+      {/* Fairness Page */}
+      <FairnessPage
+        isOpen={showFairnessPage}
+        onClose={() => setShowFairnessPage(false)}
       />
 
       {/* Authentication Modal */}

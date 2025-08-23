@@ -606,6 +606,46 @@ class DatabaseService {
     }
   }
   
+  async getRecentRoundsForFairness(limit = 50) {
+    try {
+      const rounds = await prisma.gameRound.findMany({
+        where: {
+          status: 'CRASHED'
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: limit,
+        select: {
+          id: true,
+          roundNumber: true,
+          serverSeed: true,
+          serverSeedHash: true,
+          clientSeed: true,
+          nonce: true,
+          crashPoint: true,
+          startTime: true,
+          endTime: true,
+          createdAt: true
+        }
+      });
+      
+      // Only reveal server seeds for rounds older than 5 minutes
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      
+      return rounds.map(round => ({
+        ...round,
+        serverSeed: round.endTime && new Date(round.endTime) < fiveMinutesAgo 
+          ? round.serverSeed 
+          : null, // Hide seed for recent rounds
+        crashPoint: round.crashPoint.toString()
+      }));
+    } catch (error) {
+      console.error('❌ Error getting recent rounds for fairness:', error);
+      return [];
+    }
+  }
+  
   async getLeaderboard(type = 'balance', limit = 10) {
     try {
       // Determine sort order based on type
