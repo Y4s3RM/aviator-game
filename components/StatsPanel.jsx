@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import betHistoryService from './services/betHistoryService.js';
 import authService from './services/authService.js';
+import { usePlayerSettings } from './hooks/usePlayerSettings.js';
 
 const StatsPanel = ({ isOpen, onClose }) => {
   const [stats, setStats] = useState(null);
@@ -8,53 +9,45 @@ const StatsPanel = ({ isOpen, onClose }) => {
   const [dailyLimits, setDailyLimits] = useState(null);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'history', 'limits'
   const [showLimitSettings, setShowLimitSettings] = useState(false);
-  const [limitsLoaded, setLimitsLoaded] = useState(false);
-  const [lastUserId, setLastUserId] = useState(null);
+  
+  // Use the player settings hook for server sync
+  const { 
+    dailyLimitsEnabled,
+    maxDailyWager,
+    maxDailyLoss,
+    maxGamesPerDay,
+    saveSettings,
+    fetchSettings
+  } = usePlayerSettings();
 
-  // Load data when panel opens
+  // Load data when panel opens or settings change
   useEffect(() => {
     if (isOpen) {
       loadData();
     }
-  }, [isOpen]);
+  }, [isOpen, loadData]);
 
-  const loadData = async () => {
+  const loadData = React.useCallback(() => {
     setStats(betHistoryService.getStats());
     setHistory(betHistoryService.getRecentHistory(100));
     
-    // Load limits from server if authenticated
-    const currentUser = authService.getUser();
-    const currentUserId = currentUser?.id;
-    
-    // Check if user changed or limits not loaded
-    if (authService.isAuthenticated() && (!limitsLoaded || currentUserId !== lastUserId)) {
-      try {
-        const result = await authService.getPlayerSettings();
-        if (result.success && result.settings) {
-          const serverLimits = {
-            enabled: result.settings.dailyLimitsEnabled,
-            maxDailyWager: parseFloat(result.settings.maxDailyWager),
-            maxDailyLoss: parseFloat(result.settings.maxDailyLoss),
-            maxGamesPerDay: result.settings.maxGamesPerDay
-          };
-          
-          // Update betHistoryService with server limits
-          betHistoryService.updateDailyLimits(serverLimits);
-          setLimitsLoaded(true);
-          setLastUserId(currentUserId);
-          console.log('✅ Daily limits loaded from server');
-        }
-      } catch (error) {
-        console.error('Failed to load limits from server:', error);
-      }
-    } else if (!authService.isAuthenticated()) {
-      // Reset loaded state if user logs out
-      setLimitsLoaded(false);
-      setLastUserId(null);
+    // Sync limits from server with local state
+    if (authService.isAuthenticated()) {
+      // The hook already has the latest settings, just sync them
+      const serverLimits = {
+        enabled: dailyLimitsEnabled,
+        maxDailyWager: maxDailyWager,
+        maxDailyLoss: maxDailyLoss,
+        maxGamesPerDay: maxGamesPerDay
+      };
+      
+      // Update betHistoryService with server limits
+      betHistoryService.updateDailyLimits(serverLimits);
+      console.log('✅ Daily limits synced from server');
     }
     
     setDailyLimits(betHistoryService.getDailyLimitsStatus());
-  };
+  }, [dailyLimitsEnabled, maxDailyWager, maxDailyLoss, maxGamesPerDay]);
 
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -88,18 +81,14 @@ const StatsPanel = ({ isOpen, onClose }) => {
     
     // Update server if authenticated
     if (authService.isAuthenticated()) {
-      try {
-        const serverPayload = {};
-        if ('enabled' in newLimits) serverPayload.dailyLimitsEnabled = newLimits.enabled;
-        if ('maxDailyWager' in newLimits) serverPayload.maxDailyWager = newLimits.maxDailyWager;
-        if ('maxDailyLoss' in newLimits) serverPayload.maxDailyLoss = newLimits.maxDailyLoss;
-        if ('maxGamesPerDay' in newLimits) serverPayload.maxGamesPerDay = newLimits.maxGamesPerDay;
-        
-        await authService.updatePlayerSettings(serverPayload);
-        console.log('✅ Daily limits saved to server');
-      } catch (error) {
-        console.error('Failed to save limits to server:', error);
-      }
+      const serverPayload = {};
+      if ('enabled' in newLimits) serverPayload.dailyLimitsEnabled = newLimits.enabled;
+      if ('maxDailyWager' in newLimits) serverPayload.maxDailyWager = newLimits.maxDailyWager;
+      if ('maxDailyLoss' in newLimits) serverPayload.maxDailyLoss = newLimits.maxDailyLoss;
+      if ('maxGamesPerDay' in newLimits) serverPayload.maxGamesPerDay = newLimits.maxGamesPerDay;
+      
+      // Use the hook's saveSettings method
+      await saveSettings(serverPayload);
     }
   };
 
