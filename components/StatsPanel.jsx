@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import betHistoryService from './services/betHistoryService.js';
 import authService from './services/authService.js';
 import { usePlayerSettings } from './hooks/usePlayerSettings.js';
@@ -49,6 +49,15 @@ const StatsPanel = ({ isOpen, onClose }) => {
       loadData();
     }
   }, [isOpen, loadData]);
+  
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
 
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -75,23 +84,36 @@ const StatsPanel = ({ isOpen, onClose }) => {
     </div>
   );
 
-  const updateDailyLimits = async (newLimits) => {
-    // Update local storage
+  // Debounce timer for saving to server
+  const saveTimerRef = useRef(null);
+  
+  const updateDailyLimits = useCallback((newLimits) => {
+    // Update local storage immediately
     betHistoryService.updateDailyLimits(newLimits);
     setDailyLimits(betHistoryService.getDailyLimitsStatus());
     
-    // Update server if authenticated
+    // Debounce server update
     if (authService.isAuthenticated()) {
-      const serverPayload = {};
-      if ('enabled' in newLimits) serverPayload.dailyLimitsEnabled = newLimits.enabled;
-      if ('maxDailyWager' in newLimits) serverPayload.maxDailyWager = newLimits.maxDailyWager;
-      if ('maxDailyLoss' in newLimits) serverPayload.maxDailyLoss = newLimits.maxDailyLoss;
-      if ('maxGamesPerDay' in newLimits) serverPayload.maxGamesPerDay = newLimits.maxGamesPerDay;
+      // Clear existing timer
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
       
-      // Use the hook's saveSettings method
-      await saveSettings(serverPayload);
+      // Set new timer
+      saveTimerRef.current = setTimeout(async () => {
+        const currentLimits = betHistoryService.getDailyLimitsStatus();
+        const serverPayload = {
+          dailyLimitsEnabled: currentLimits.enabled,
+          maxDailyWager: currentLimits.maxDailyWager,
+          maxDailyLoss: currentLimits.maxDailyLoss,
+          maxGamesPerDay: currentLimits.maxGamesPerDay
+        };
+        
+        // Use the hook's saveSettings method
+        await saveSettings(serverPayload);
+      }, 500); // Wait 500ms after last change
     }
-  };
+  }, [saveSettings]);
 
   if (!isOpen) return null;
 
