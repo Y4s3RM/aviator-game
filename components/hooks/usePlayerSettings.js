@@ -14,7 +14,8 @@ export function usePlayerSettings() {
     
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/player/settings`, {
+      const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://aviator-game-production.up.railway.app/api';
+      const response = await fetch(`${baseURL}/player/settings`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -55,7 +56,8 @@ export function usePlayerSettings() {
     if (!token) return { success: false, error: 'Not authenticated' };
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/player/settings`, {
+      const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://aviator-game-production.up.railway.app/api';
+      const response = await fetch(`${baseURL}/player/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
