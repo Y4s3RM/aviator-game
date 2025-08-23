@@ -10,6 +10,7 @@ import NotificationSystem from './components/NotificationSystem.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import AdminLoginModal from './components/AdminLoginModal.jsx';
 import UserProfile from './components/UserProfile.jsx';
+import RanksPanel from './components/RanksPanel.jsx';
 import { useGameBackend } from './components/hooks/useGameBackend.js';
 import soundEffects from './components/utils/soundEffects.js';
 import authService from './components/services/authService.js';
@@ -54,6 +55,8 @@ function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
+  const [showRanksPanel, setShowRanksPanel] = useState(false);
+  const [activeNavTab, setActiveNavTab] = useState('Play');
   const [prevGameState, setPrevGameState] = useState(gameState);
   const [prevCountdown, setPrevCountdown] = useState(countdown);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -497,12 +500,29 @@ function App() {
       </div>
 
       {/* Bottom Navigation */}
-      <BottomNav />
+      <BottomNav 
+        activeTab={activeNavTab}
+        onTabChange={(tab) => {
+          setActiveNavTab(tab);
+          if (tab === 'Ranks') {
+            setShowRanksPanel(true);
+          }
+        }}
+      />
 
       {/* Statistics Panel */}
       <StatsPanel 
         isOpen={showStatsPanel} 
         onClose={() => setShowStatsPanel(false)} 
+      />
+
+      {/* Ranks Panel */}
+      <RanksPanel
+        isOpen={showRanksPanel}
+        onClose={() => {
+          setShowRanksPanel(false);
+          setActiveNavTab('Play');
+        }}
       />
 
       {/* Authentication Modal */}

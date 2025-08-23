@@ -375,8 +375,7 @@ const UserProfile = ({ isOpen, onClose }) => {
                 {[
                   { key: 'balance', label: 'Balance' },
                   { key: 'totalWon', label: 'Total Won' },
-                  { key: 'winRate', label: 'Win Rate' },
-                  { key: 'level', label: 'Level' }
+                  { key: 'winRate', label: 'Win Rate' }
                 ].map(type => (
                   <button
                     key={type.key}

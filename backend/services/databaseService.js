@@ -606,26 +606,81 @@ class DatabaseService {
     }
   }
   
-  async getLeaderboard(limit = 10) {
+  async getLeaderboard(type = 'balance', limit = 10) {
     try {
+      // Determine sort order based on type
+      let orderBy = {};
+      switch (type) {
+        case 'balance':
+          orderBy = { balance: 'desc' };
+          break;
+        case 'totalWon':
+          orderBy = { totalWon: 'desc' };
+          break;
+        case 'winRate':
+          // For win rate, we need to fetch all and sort manually
+          orderBy = { gamesPlayed: 'desc' }; // At least some games
+          break;
+        default:
+          orderBy = { balance: 'desc' };
+      }
+      
       const users = await prisma.user.findMany({
-        orderBy: { totalWon: 'desc' },
-        take: limit,
+        where: {
+          isActive: true,
+          role: 'PLAYER' // Exclude admins from leaderboard
+        },
+        orderBy,
+        take: type === 'winRate' ? 100 : limit, // Get more for winRate calculation
         select: {
           id: true,
           username: true,
           firstName: true,
+          balance: true,
           totalWon: true,
           totalWagered: true,
+          totalLost: true,
           gamesPlayed: true,
           biggestWin: true
+        },
+        include: {
+          bets: {
+            select: {
+              status: true
+            }
+          }
         }
       });
       
-      return users.map(user => ({
-        ...user,
-        netProfit: parseFloat(user.totalWon) - parseFloat(user.totalWagered)
-      }));
+      // Calculate additional stats
+      let processedUsers = users.map(user => {
+        const wonBets = user.bets.filter(bet => bet.status === 'CASHED_OUT').length;
+        const totalBets = user.bets.length;
+        const winRate = totalBets > 0 ? (wonBets / totalBets * 100) : 0;
+        
+        return {
+          id: user.id,
+          username: user.username,
+          firstName: user.firstName,
+          balance: parseFloat(user.balance),
+          totalWon: parseFloat(user.totalWon),
+          totalWagered: parseFloat(user.totalWagered),
+          gamesPlayed: user.gamesPlayed,
+          biggestWin: parseFloat(user.biggestWin),
+          netProfit: parseFloat(user.totalWon) - parseFloat(user.totalLost),
+          winRate: parseFloat(winRate.toFixed(2))
+        };
+      });
+      
+      // Sort by win rate if needed and limit
+      if (type === 'winRate') {
+        processedUsers = processedUsers
+          .filter(user => user.gamesPlayed >= 10) // Min 10 games for win rate leaderboard
+          .sort((a, b) => b.winRate - a.winRate)
+          .slice(0, limit);
+      }
+      
+      return processedUsers;
     } catch (error) {
       console.error('❌ Error getting leaderboard:', error);
       return [];

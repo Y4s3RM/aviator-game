@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 
-const BottomNav = () => {
-  const [activeTab, setActiveTab] = useState('Play');
+const BottomNav = ({ activeTab = 'Play', onTabChange }) => {
 
   const navItems = [
     {
@@ -63,7 +62,11 @@ const BottomNav = () => {
         {navItems.map((item) => (
           <button
             key={item.name}
-            onClick={() => setActiveTab(item.name)}
+            onClick={() => {
+              if (onTabChange) {
+                onTabChange(item.name);
+              }
+            }}
             className={`
               flex flex-col items-center justify-center py-2 px-3 rounded-lg
               transition-all duration-200 min-w-[60px]
