@@ -12,6 +12,7 @@ import AdminLoginModal from './components/AdminLoginModal.jsx';
 import UserProfile from './components/UserProfile.jsx';
 import RanksPanel from './components/RanksPanel.jsx';
 import FairnessPage from './components/FairnessPage.jsx';
+import WorkPanel from './components/WorkPanel.jsx';
 import { useGameBackend } from './components/hooks/useGameBackend.js';
 import soundEffects from './components/utils/soundEffects.js';
 import authService from './components/services/authService.js';
@@ -59,6 +60,7 @@ function App() {
   const [showRanksPanel, setShowRanksPanel] = useState(false);
   const [activeNavTab, setActiveNavTab] = useState('Play');
   const [showFairnessPage, setShowFairnessPage] = useState(false);
+  const [showWorkPanel, setShowWorkPanel] = useState(false);
   const [prevGameState, setPrevGameState] = useState(gameState);
   const [prevCountdown, setPrevCountdown] = useState(countdown);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -516,6 +518,8 @@ function App() {
           setActiveNavTab(tab);
           if (tab === 'Ranks') {
             setShowRanksPanel(true);
+          } else if (tab === 'Work') {
+            setShowWorkPanel(true);
           }
         }}
       />
@@ -539,6 +543,15 @@ function App() {
       <FairnessPage
         isOpen={showFairnessPage}
         onClose={() => setShowFairnessPage(false)}
+      />
+
+      {/* Work Panel */}
+      <WorkPanel
+        isOpen={showWorkPanel}
+        onClose={() => {
+          setShowWorkPanel(false);
+          setActiveNavTab('Play');
+        }}
       />
 
       {/* Authentication Modal */}

@@ -574,6 +574,64 @@ app.get('/api/leaderboard', authService.optionalAuth.bind(authService), async (r
 });
 
 // =============================================================================
+// FARMING SYSTEM ROUTES (auth required)
+// =============================================================================
+
+app.get('/api/farming/status',
+  authService.authenticateToken.bind(authService),
+  async (req, res) => {
+    try {
+      const user = await databaseService.findUserById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const now = new Date();
+      const lastClaimed = user.lastClaimedAt ? new Date(user.lastClaimedAt) : null;
+      const hoursElapsed = lastClaimed 
+        ? (now - lastClaimed) / (1000 * 60 * 60) 
+        : 6; // If never claimed, allow first claim
+      
+      const canClaim = hoursElapsed >= 6;
+      const nextClaimTime = lastClaimed 
+        ? new Date(lastClaimed.getTime() + 6 * 60 * 60 * 1000)
+        : now;
+
+      res.json({
+        success: true,
+        canClaim,
+        lastClaimedAt: lastClaimed,
+        nextClaimTime: canClaim ? now : nextClaimTime,
+        hoursElapsed: Math.min(hoursElapsed, 6), // Cap at 6 hours
+        pointsAvailable: canClaim ? 6000 : 0
+      });
+    } catch (error) {
+      console.error('❌ Farming status error:', error);
+      res.status(500).json({ error: 'Failed to get farming status' });
+    }
+  }
+);
+
+app.post('/api/farming/claim',
+  authService.authenticateToken.bind(authService),
+  async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const result = await databaseService.claimFarmingPoints(userId);
+      
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error('❌ Farming claim error:', error);
+      res.status(500).json({ error: 'Failed to claim farming points' });
+    }
+  }
+);
+
+// =============================================================================
 // PLAYER SETTINGS ROUTES (auth required)
 // =============================================================================
 

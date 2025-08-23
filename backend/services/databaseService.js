@@ -777,6 +777,78 @@ class DatabaseService {
     }
   }
 
+  // ==================== FARMING SYSTEM ====================
+  
+  async claimFarmingPoints(userId) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!user) {
+        return { success: false, error: 'User not found' };
+      }
+
+      const now = new Date();
+      const lastClaimed = user.lastClaimedAt ? new Date(user.lastClaimedAt) : null;
+      const hoursElapsed = lastClaimed 
+        ? (now - lastClaimed) / (1000 * 60 * 60) 
+        : 6; // If never claimed, allow first claim
+
+      if (hoursElapsed < 6) {
+        const timeRemaining = 6 - hoursElapsed;
+        return { 
+          success: false, 
+          error: 'Cannot claim yet',
+          timeRemaining: timeRemaining * 60 * 60 * 1000, // milliseconds
+          nextClaimTime: new Date(lastClaimed.getTime() + 6 * 60 * 60 * 1000)
+        };
+      }
+
+      // Award 6000 points
+      const pointsToAward = 6000;
+      const newBalance = parseFloat(user.balance) + pointsToAward;
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          balance: newBalance,
+          lastClaimedAt: now
+        }
+      });
+
+      // Record transaction
+      await prisma.transaction.create({
+        data: {
+          userId,
+          type: 'FARMING_CLAIM',
+          amount: pointsToAward,
+          balanceBefore: parseFloat(user.balance),
+          balanceAfter: newBalance,
+          description: 'Daily farming points claim',
+          metadata: {
+            source: 'farming',
+            claimedAt: now.toISOString(),
+            hoursElapsed: Math.min(hoursElapsed, 6)
+          }
+        }
+      });
+
+      console.log(`🌾 User ${userId} claimed ${pointsToAward} farming points`);
+
+      return {
+        success: true,
+        pointsClaimed: pointsToAward,
+        newBalance,
+        lastClaimedAt: now,
+        nextClaimTime: new Date(now.getTime() + 6 * 60 * 60 * 1000)
+      };
+    } catch (error) {
+      console.error('❌ Error claiming farming points:', error);
+      return { success: false, error: 'Failed to claim farming points' };
+    }
+  }
+
   // ==================== ADMIN METHODS ====================
   
   async getAdminStats() {

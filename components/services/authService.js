@@ -278,6 +278,35 @@ class AuthService {
   // PUBLIC API METHODS
   // =============================================================================
 
+  // Farming system
+  async getFarmingStatus() {
+    try {
+      const result = await this.apiRequest('/farming/status', { method: 'GET' });
+      return result;
+    } catch (error) {
+      console.error('❌ Get farming status error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async claimFarmingPoints() {
+    try {
+      const result = await this.apiRequest('/farming/claim', { method: 'POST' });
+      if (result.success) {
+        // Update local user balance
+        const currentUser = this.getUser();
+        if (currentUser) {
+          currentUser.balance = result.newBalance;
+          this.saveUser(currentUser);
+        }
+      }
+      return result;
+    } catch (error) {
+      console.error('❌ Claim farming points error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   async getLeaderboard(type = 'balance', limit = 10) {
     const params = new URLSearchParams({ type, limit });
     return await this.apiRequest(`/leaderboard?${params}`);
