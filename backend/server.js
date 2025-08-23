@@ -581,6 +581,8 @@ app.put('/api/player/settings',
   settingsWriteLimiter,
   async (req, res) => {
     try {
+      console.log('📥 PUT /api/player/settings - User:', req.user?.id, 'Body:', req.body);
+      
       const { 
         autoCashoutEnabled, 
         autoCashoutMultiplier, 
@@ -600,7 +602,9 @@ app.put('/api/player/settings',
       if (typeof maxDailyLoss === 'number') payload.maxDailyLoss = maxDailyLoss;
       if (typeof maxGamesPerDay === 'number') payload.maxGamesPerDay = maxGamesPerDay;
 
+      console.log('📤 Saving settings payload:', payload);
       const updated = await databaseService.upsertPlayerSettings(req.user.id, payload);
+      console.log('✅ Settings saved to DB:', updated);
       res.json({ success: true, settings: updated });
     } catch (error) {
       console.error('❌ Player settings update error:', error);

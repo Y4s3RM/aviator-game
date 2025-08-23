@@ -42,12 +42,6 @@ export function usePlayerSettings() {
     }
   }, []);
 
-  // Schedule save with debouncing
-  const scheduleSave = useCallback(() => {
-    clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(flush, 600); // 600ms debounce
-  }, []);
-
   // Flush pending changes to server
   const flush = useCallback(async () => {
     const token = authService.getToken();
@@ -56,6 +50,8 @@ export function usePlayerSettings() {
     const patch = pendingPatchRef.current;
     if (!patch || Object.keys(patch).length === 0) return;
     if (inFlightRef.current) return; // Prevent overlapping requests
+    
+    console.log('🚀 Flushing settings to server:', patch);
     
     inFlightRef.current = true;
     setSaving(true);
@@ -91,6 +87,7 @@ export function usePlayerSettings() {
       }
       
       const json = await response.json();
+      console.log('📥 Server response:', json);
       if (json?.settings && mountedRef.current) {
         // Update local state with server response
         setSettings(prev => ({ ...prev, ...json.settings }));
@@ -108,8 +105,18 @@ export function usePlayerSettings() {
     }
   }, []);
 
+  // Schedule save with debouncing
+  const scheduleSave = useCallback(() => {
+    clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      flush();
+    }, 600); // 600ms debounce
+  }, [flush]);
+
   // Update a single setting
   const updateSetting = useCallback((key, value) => {
+    console.log(`📝 updateSetting called: ${key} = ${value}`);
+    
     // Update local state immediately
     setSettings(prev => {
       if (!prev) return { [key]: value };
@@ -118,6 +125,7 @@ export function usePlayerSettings() {
     
     // Add to pending changes
     pendingPatchRef.current = { ...pendingPatchRef.current, [key]: value };
+    console.log('📋 Pending changes:', pendingPatchRef.current);
     
     // Schedule save
     scheduleSave();
