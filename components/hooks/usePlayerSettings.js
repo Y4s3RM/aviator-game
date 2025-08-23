@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import authService from '../services/authService';
+import authService from '../../components/services/authService';
 
 export function usePlayerSettings() {
   const [settings, setSettings] = useState(null);

@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { useGameBackend } from './hooks/useGameBackend';
 
 const UpdateChecker = () => {
   const [hasUpdate, setHasUpdate] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const { gameState, hasActiveBet } = useGameBackend();
   
   // Configuration based on environment
   const isDev = window.location.hostname === 'localhost' || 
@@ -108,24 +111,22 @@ const UpdateChecker = () => {
     // For Telegram Mini Apps, we need to close and reopen
     if (window.Telegram?.WebApp) {
       // Show feedback with countdown
-      let countdown = 3;
-      const showCountdown = () => {
-        if (countdown > 0) {
-          window.Telegram.WebApp.showAlert(
-            `Update available! Reloading in ${countdown}...`, 
-            () => {
-              countdown--;
-              if (countdown > 0) {
-                setTimeout(showCountdown, 1000);
-              } else {
-                // Force reload with cache bypass
-                window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
-              }
-            }
-          );
-        }
-      };
-      showCountdown();
+      // Note: showAlert is not available in Telegram WebApp v6.0, use HapticFeedback instead
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('warning');
+      
+      // Visual countdown
+      setCountdown(3);
+      const countdownInterval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            // Force reload with cache bypass
+            window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } else {
       // Regular browser reload
       if (confirm('New version available! Reload now?')) {
@@ -157,21 +158,27 @@ const UpdateChecker = () => {
     <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-green-600 to-green-700 text-white p-2 text-center">
       <div className="flex items-center justify-center gap-2">
         <span className="text-sm font-medium">
-          🎉 New version available!
+          {countdown !== null 
+            ? `🔄 Updating in ${countdown}...` 
+            : '🎉 New version available!'}
         </span>
-        <button
-          onClick={handleUpdate}
-          disabled={checking}
-          className="px-3 py-1 bg-white text-green-700 rounded-full text-xs font-bold hover:bg-gray-100 transition-colors"
-        >
-          Update Now
-        </button>
-        <button
-          onClick={handleDismiss}
-          className="px-3 py-1 bg-green-800 text-white rounded-full text-xs font-bold hover:bg-green-900 transition-colors"
-        >
-          Later
-        </button>
+        {countdown === null && (
+          <>
+            <button
+              onClick={handleUpdate}
+              disabled={checking}
+              className="px-3 py-1 bg-white text-green-700 rounded-full text-xs font-bold hover:bg-gray-100 transition-colors"
+            >
+              Update Now
+            </button>
+            <button
+              onClick={handleDismiss}
+              className="px-3 py-1 bg-green-800 text-white rounded-full text-xs font-bold hover:bg-green-900 transition-colors"
+            >
+              Later
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
