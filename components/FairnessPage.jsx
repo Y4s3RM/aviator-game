@@ -41,10 +41,22 @@ const FairnessPage = ({ isOpen, onClose }) => {
       const hex = hash.substring(0, 8);
       const intValue = parseInt(hex, 16);
       
-      // Calculate crash point with house edge
-      // Maximum possible value is 2^32 - 1
-      const e = Math.pow(2, 32);
-      const crashPoint = Math.floor((e - intValue) / (e - intValue - 1) * 100) / 100;
+      // Maximum value for 8 hex characters
+      const maxValue = 0xFFFFFFFF;
+      
+      // Calculate the probability (0 to 1)
+      const probability = intValue / maxValue;
+      
+      // Apply house edge (0.01 = 1%)
+      const houseEdge = 0.01;
+      const adjustedProbability = probability * (1 - houseEdge);
+      
+      // Convert to crash multiplier using exponential distribution
+      if (adjustedProbability === 0) {
+        return 1.00;
+      }
+      
+      const crashPoint = 1 / adjustedProbability;
       
       // Cap at reasonable maximum (1000x) and ensure minimum of 1.00
       return Math.max(1.00, Math.min(crashPoint, 1000));
