@@ -576,32 +576,14 @@ app.get('/api/player/settings',
   }
 );
 
-// TEMPORARY DEBUG PROBE - Remove after testing
-app.put('/api/player/settings', 
-  authService.authenticateToken.bind(authService),
-  async (req, res) => {
-    console.log('🔍 DEBUG: PUT /api/player/settings probe');
-    console.log('  - User ID:', req.user?.id);
-    console.log('  - User object:', req.user);
-    console.log('  - Request body:', req.body);
-    console.log('  - Headers:', req.headers);
-    return res.json({ 
-      debug: true,
-      seenUserId: req.user?.id, 
-      echoed: req.body,
-      timestamp: new Date().toISOString()
-    });
-  }
-);
-
-// Original implementation (commented out for testing)
-/*
+// Restore the actual implementation with extra logging
 app.put('/api/player/settings', 
   authService.authenticateToken.bind(authService),
   settingsWriteLimiter,
   async (req, res) => {
     try {
       console.log('📥 PUT /api/player/settings - User:', req.user?.id, 'Body:', req.body);
+      console.log('  - Full user object:', req.user);
       
       const { 
         autoCashoutEnabled, 
@@ -628,11 +610,11 @@ app.put('/api/player/settings',
       res.json({ success: true, settings: updated });
     } catch (error) {
       console.error('❌ Player settings update error:', error);
+      console.error('Full error stack:', error.stack);
       res.status(500).json({ error: 'Failed to update settings' });
     }
   }
 );
-*/
 
 // Crash point generation now uses provably fair system
 let currentGameRound = null;
