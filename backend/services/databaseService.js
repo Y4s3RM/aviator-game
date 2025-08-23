@@ -72,6 +72,8 @@ class DatabaseService {
 
   async upsertPlayerSettings(userId, partialSettings) {
     try {
+      console.log(`📝 upsertPlayerSettings called for user ${userId} with:`, partialSettings);
+      
       const updated = await prisma.playerSettings.upsert({
         where: { userId },
         update: {
@@ -94,9 +96,11 @@ class DatabaseService {
           maxGamesPerDay: partialSettings.maxGamesPerDay ?? 100,
         }
       });
+      console.log(`✅ Player settings upserted successfully:`, updated);
       return updated;
     } catch (error) {
       console.error('❌ Error upserting player settings:', error);
+      console.error('Full error details:', error);
       return null;
     }
   }
