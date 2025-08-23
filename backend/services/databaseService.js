@@ -64,7 +64,15 @@ class DatabaseService {
   async getPlayerSettings(userId) {
     try {
       const settings = await prisma.playerSettings.findUnique({ where: { userId } });
-      return settings;
+      if (!settings) return null;
+      
+      // Convert Decimal fields to numbers for frontend consumption
+      return {
+        ...settings,
+        autoCashoutMultiplier: settings.autoCashoutMultiplier ? Number(settings.autoCashoutMultiplier) : 2.0,
+        maxDailyWager: settings.maxDailyWager ? Number(settings.maxDailyWager) : 10000,
+        maxDailyLoss: settings.maxDailyLoss ? Number(settings.maxDailyLoss) : 5000
+      };
     } catch (error) {
       console.error('❌ Error getting player settings:', error);
       return null;
@@ -98,7 +106,14 @@ class DatabaseService {
         }
       });
       console.log(`✅ Player settings upserted successfully:`, updated);
-      return updated;
+      
+      // Convert Decimal fields to numbers for frontend consumption
+      return {
+        ...updated,
+        autoCashoutMultiplier: updated.autoCashoutMultiplier ? Number(updated.autoCashoutMultiplier) : 2.0,
+        maxDailyWager: updated.maxDailyWager ? Number(updated.maxDailyWager) : 10000,
+        maxDailyLoss: updated.maxDailyLoss ? Number(updated.maxDailyLoss) : 5000
+      };
     } catch (error) {
       console.error('❌ Error upserting player settings:', error);
       console.error('Full error details:', error);
