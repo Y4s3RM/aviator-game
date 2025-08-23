@@ -12,12 +12,13 @@ const StatsPanel = ({ isOpen, onClose }) => {
   
   // Use the player settings hook for server sync
   const { 
+    settings,
+    saving,
+    updateSetting,
     dailyLimitsEnabled,
     maxDailyWager,
     maxDailyLoss,
-    maxGamesPerDay,
-    saveSettings,
-    fetchSettings
+    maxGamesPerDay
   } = usePlayerSettings();
 
   // Define loadData before using it in useEffect
@@ -50,14 +51,7 @@ const StatsPanel = ({ isOpen, onClose }) => {
     }
   }, [isOpen, loadData]);
   
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-      }
-    };
-  }, []);
+
 
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -84,36 +78,27 @@ const StatsPanel = ({ isOpen, onClose }) => {
     </div>
   );
 
-  // Debounce timer for saving to server
-  const saveTimerRef = useRef(null);
-  
   const updateDailyLimits = useCallback((newLimits) => {
     // Update local storage immediately
     betHistoryService.updateDailyLimits(newLimits);
     setDailyLimits(betHistoryService.getDailyLimitsStatus());
     
-    // Debounce server update
+    // Update each changed setting using the hook
     if (authService.isAuthenticated()) {
-      // Clear existing timer
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
+      if ('enabled' in newLimits) {
+        updateSetting('dailyLimitsEnabled', newLimits.enabled);
       }
-      
-      // Set new timer
-      saveTimerRef.current = setTimeout(async () => {
-        const currentLimits = betHistoryService.getDailyLimitsStatus();
-        const serverPayload = {
-          dailyLimitsEnabled: currentLimits.enabled,
-          maxDailyWager: currentLimits.maxDailyWager,
-          maxDailyLoss: currentLimits.maxDailyLoss,
-          maxGamesPerDay: currentLimits.maxGamesPerDay
-        };
-        
-        // Use the hook's saveSettings method
-        await saveSettings(serverPayload);
-      }, 500); // Wait 500ms after last change
+      if ('maxDailyWager' in newLimits) {
+        updateSetting('maxDailyWager', newLimits.maxDailyWager);
+      }
+      if ('maxDailyLoss' in newLimits) {
+        updateSetting('maxDailyLoss', newLimits.maxDailyLoss);
+      }
+      if ('maxGamesPerDay' in newLimits) {
+        updateSetting('maxGamesPerDay', newLimits.maxGamesPerDay);
+      }
     }
-  }, [saveSettings]);
+  }, [updateSetting]);
 
   if (!isOpen) return null;
 
@@ -279,12 +264,15 @@ const StatsPanel = ({ isOpen, onClose }) => {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Daily Limits</h3>
-                <button
-                  onClick={() => setShowLimitSettings(!showLimitSettings)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                >
-                  {showLimitSettings ? 'Hide Settings' : 'Edit Limits'}
-                </button>
+                <div className="flex items-center gap-2">
+                  {saving && <span className="text-xs text-gray-400">Saving...</span>}
+                  <button
+                    onClick={() => setShowLimitSettings(!showLimitSettings)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                  >
+                    {showLimitSettings ? 'Hide Settings' : 'Edit Limits'}
+                  </button>
+                </div>
               </div>
 
               {/* Current Usage */}

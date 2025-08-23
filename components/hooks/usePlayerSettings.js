@@ -3,9 +3,15 @@ import authService from '../../components/services/authService';
 
 export function usePlayerSettings() {
   const [settings, setSettings] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
-  const backoffRef = useRef(5000); // 5s start
-  const timerRef = useRef(null);
+  
+  // Refs for batching and debouncing
+  const pendingPatchRef = useRef({});
+  const debounceTimerRef = useRef(null);
+  const retryTimerRef = useRef(null);
+  const backoffMsRef = useRef(2000);
+  const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
 
   const fetchSettings = useCallback(async () => {
@@ -17,30 +23,15 @@ export function usePlayerSettings() {
       const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://aviator-game-production.up.railway.app/api';
       const response = await fetch(`${baseURL}/player/settings`, {
         headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`
         }
       });
       
-      if (response.status === 429) {
-        // Rate limited - exponential backoff
-        clearTimeout(timerRef.current);
-        backoffRef.current = Math.min(backoffRef.current * 2, 60000); // max 60s
-        console.log(`⏰ Rate limited, retrying in ${backoffRef.current / 1000}s`);
-        timerRef.current = setTimeout(fetchSettings, backoffRef.current);
-        return;
-      }
-      
-      // Reset backoff on successful request
-      backoffRef.current = 10000; // 10s for normal refresh
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const json = await response.json();
-      if (json?.settings && mountedRef.current) {
-        setSettings(json.settings);
+      if (response.ok) {
+        const json = await response.json();
+        if (json?.settings && mountedRef.current) {
+          setSettings(json.settings);
+        }
       }
     } catch (error) {
       console.error('❌ Failed to fetch settings:', error);
@@ -51,9 +42,23 @@ export function usePlayerSettings() {
     }
   }, []);
 
-  const saveSettings = useCallback(async (patch) => {
+  // Schedule save with debouncing
+  const scheduleSave = useCallback(() => {
+    clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(flush, 600); // 600ms debounce
+  }, []);
+
+  // Flush pending changes to server
+  const flush = useCallback(async () => {
     const token = authService.getToken();
-    if (!token) return { success: false, error: 'Not authenticated' };
+    if (!token || !mountedRef.current) return;
+    
+    const patch = pendingPatchRef.current;
+    if (!patch || Object.keys(patch).length === 0) return;
+    if (inFlightRef.current) return; // Prevent overlapping requests
+    
+    inFlightRef.current = true;
+    setSaving(true);
     
     try {
       const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://aviator-game-production.up.railway.app/api';
@@ -66,22 +71,66 @@ export function usePlayerSettings() {
         body: JSON.stringify(patch)
       });
       
+      if (response.status === 429) {
+        // Handle rate limiting with exponential backoff
+        const retryAfter = Number(response.headers.get('Retry-After')) || backoffMsRef.current / 1000;
+        backoffMsRef.current = Math.min(backoffMsRef.current * 2, 60000); // Max 60s
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = setTimeout(flush, retryAfter * 1000);
+        console.log(`⏰ Rate limited, retrying in ${retryAfter}s`);
+        return;
+      }
+      
+      // Reset backoff on successful request
+      backoffMsRef.current = 2000;
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        console.error('❌ Failed to save settings:', response.status);
+        // Optionally surface error to UI
+        return;
       }
       
       const json = await response.json();
       if (json?.settings && mountedRef.current) {
-        setSettings(json.settings);
+        // Update local state with server response
+        setSettings(prev => ({ ...prev, ...json.settings }));
+        // Clear pending changes
+        pendingPatchRef.current = {};
         console.log('✅ Settings saved successfully');
       }
-      return { success: true, settings: json?.settings };
     } catch (error) {
       console.error('❌ Failed to save settings:', error);
-      return { success: false, error: error.message };
+    } finally {
+      inFlightRef.current = false;
+      if (mountedRef.current) {
+        setSaving(false);
+      }
     }
   }, []);
 
+  // Update a single setting
+  const updateSetting = useCallback((key, value) => {
+    // Update local state immediately
+    setSettings(prev => {
+      if (!prev) return { [key]: value };
+      return { ...prev, [key]: value };
+    });
+    
+    // Add to pending changes
+    pendingPatchRef.current = { ...pendingPatchRef.current, [key]: value };
+    
+    // Schedule save
+    scheduleSave();
+  }, [scheduleSave]);
+
+  // Force immediate save
+  const flushNow = useCallback(() => {
+    clearTimeout(debounceTimerRef.current);
+    clearTimeout(retryTimerRef.current);
+    return flush();
+  }, [flush]);
+
+  // Initial fetch and cleanup
   useEffect(() => {
     mountedRef.current = true;
     
@@ -91,7 +140,6 @@ export function usePlayerSettings() {
     // Fetch on visibility change (tab becomes active)
     const handleVisibilityChange = () => {
       if (!document.hidden && mountedRef.current) {
-        console.log('👁️ Tab became visible, refreshing settings');
         fetchSettings();
       }
     };
@@ -99,28 +147,21 @@ export function usePlayerSettings() {
     // Listen for auth state changes
     const handleAuthChange = (event) => {
       if (event.detail?.isAuthenticated && mountedRef.current) {
-        console.log('🔐 Auth state changed, refreshing settings');
         fetchSettings();
       } else if (!event.detail?.isAuthenticated && mountedRef.current) {
         // Clear settings when logged out
         setSettings(null);
+        pendingPatchRef.current = {};
       }
     };
     
     window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('authStateChanged', handleAuthChange);
     
-    // Set up gentle background refresh (every 30s when active)
-    const refreshInterval = setInterval(() => {
-      if (!document.hidden && mountedRef.current) {
-        fetchSettings();
-      }
-    }, 30000);
-    
     return () => {
       mountedRef.current = false;
-      clearTimeout(timerRef.current);
-      clearInterval(refreshInterval);
+      clearTimeout(debounceTimerRef.current);
+      clearTimeout(retryTimerRef.current);
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('authStateChanged', handleAuthChange);
     };
@@ -128,10 +169,12 @@ export function usePlayerSettings() {
 
   return { 
     settings, 
-    loading, 
-    fetchSettings, 
-    saveSettings,
-    // Convenience getters
+    saving,
+    loading,
+    fetchSettings,
+    updateSetting,
+    flushNow,
+    // Convenience getters with defaults
     autoCashoutEnabled: settings?.autoCashoutEnabled ?? false,
     autoCashoutMultiplier: settings?.autoCashoutMultiplier ?? 2.0,
     soundEnabled: settings?.soundEnabled ?? true,

@@ -133,9 +133,19 @@ const settingsReadLimiter = rateLimit({
 
 const settingsWriteLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 30, // writes are rarer
+  max: 12, // limit to 12 writes per minute per user
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   skip: (req) => req.method === 'OPTIONS',
   validate: false,
+  keyGenerator: (req) => {
+    // Use user ID if available, fallback to IP
+    try { 
+      return req.user?.id || req.ip; 
+    } catch { 
+      return req.ip; 
+    }
+  },
   handler: (req, res) => {
     res.status(429).json({
       error: 'Too many settings updates, please try again later.',

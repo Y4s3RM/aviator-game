@@ -9,15 +9,13 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
   
   // Player settings hook - handles all the loading/saving/caching for us
   const { 
-    autoCashoutEnabled: savedAutoCashoutEnabled,
-    autoCashoutMultiplier: savedAutoCashoutMultiplier,
-    saveSettings,
-    loading: settingsLoading 
+    settings,
+    saving,
+    updateSetting,
+    autoCashoutEnabled,
+    autoCashoutMultiplier
   } = usePlayerSettings();
   
-  // Local state for immediate UI updates
-  const [autoCashoutEnabled, setAutoCashoutEnabled] = useState(savedAutoCashoutEnabled);
-  const [autoCashoutMultiplier, setAutoCashoutMultiplier] = useState(savedAutoCashoutMultiplier);
   const [showAutoCashoutSettings, setShowAutoCashoutSettings] = useState(false);
   
   // Visual feedback state
@@ -33,34 +31,12 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
         onCashOut();
         soundEffects.playAutoCashoutSound();
         showFeedback(`Auto-cashed out at ${multiplier.toFixed(2)}x!`, 'auto-cashout');
-        setAutoCashoutEnabled(false); // Disable after auto-cashout
+        updateSetting('autoCashoutEnabled', false); // Disable after auto-cashout
       }
     }
-  }, [multiplier, autoCashoutEnabled, autoCashoutMultiplier, gameState, activeBet, cashedOutMultiplier, onCashOut]);
+  }, [multiplier, autoCashoutEnabled, autoCashoutMultiplier, gameState, activeBet, cashedOutMultiplier, onCashOut, updateSetting]);
 
-  // Sync settings from hook when they change
-  useEffect(() => {
-    setAutoCashoutEnabled(savedAutoCashoutEnabled);
-    setAutoCashoutMultiplier(savedAutoCashoutMultiplier);
-  }, [savedAutoCashoutEnabled, savedAutoCashoutMultiplier]);
 
-  // Persist changes (debounced)
-  useEffect(() => {
-    // Don't save if values haven't changed from saved values
-    if (autoCashoutEnabled === savedAutoCashoutEnabled && 
-        autoCashoutMultiplier === savedAutoCashoutMultiplier) {
-      return;
-    }
-    
-    const handle = setTimeout(async () => {
-      await saveSettings({
-        autoCashoutEnabled,
-        autoCashoutMultiplier: Number(autoCashoutMultiplier)
-      });
-    }, 500);
-    
-    return () => clearTimeout(handle);
-  }, [autoCashoutEnabled, autoCashoutMultiplier, savedAutoCashoutEnabled, savedAutoCashoutMultiplier, saveSettings]);
   const handleDecrease = () => {
     setBetAmount(prev => Math.max(100, prev - 100));
   };
@@ -253,7 +229,7 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <button
-                onClick={() => setAutoCashoutEnabled(!autoCashoutEnabled)}
+                onClick={() => updateSetting('autoCashoutEnabled', !autoCashoutEnabled)}
                 className={`
                   relative inline-flex h-6 w-11 items-center rounded-full transition-colors
                   ${autoCashoutEnabled ? 'bg-green-600' : 'bg-gray-600'}
@@ -267,6 +243,7 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
                 />
               </button>
               <span className="text-sm font-medium text-gray-300">Auto Cashout</span>
+              {saving && <span className="text-xs text-gray-400 ml-2">Saving...</span>}
             </div>
             
             {autoCashoutEnabled && (
@@ -285,7 +262,7 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
               <div className="text-sm text-gray-400 mb-2">Auto-cashout at:</div>
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => setAutoCashoutMultiplier(Math.max(1.1, autoCashoutMultiplier - 0.1))}
+                  onClick={() => updateSetting('autoCashoutMultiplier', Math.max(1.1, autoCashoutMultiplier - 0.1))}
                   className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 flex items-center justify-center"
                 >
                   <span className="text-sm">-</span>
@@ -294,7 +271,7 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
                   <input
                     type="number"
                     value={autoCashoutMultiplier}
-                    onChange={(e) => setAutoCashoutMultiplier(Math.max(1.1, parseFloat(e.target.value) || 1.1))}
+                    onChange={(e) => updateSetting('autoCashoutMultiplier', Math.max(1.1, parseFloat(e.target.value) || 1.1))}
                     step="0.1"
                     min="1.1"
                     max="100"
@@ -302,7 +279,7 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
                   />
                 </div>
                 <button
-                  onClick={() => setAutoCashoutMultiplier(Math.min(100, autoCashoutMultiplier + 0.1))}
+                  onClick={() => updateSetting('autoCashoutMultiplier', Math.min(100, autoCashoutMultiplier + 0.1))}
                   className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 flex items-center justify-center"
                 >
                   <span className="text-sm">+</span>
@@ -320,7 +297,7 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
               {[1.5, 2.0, 3.0, 5.0, 10.0].map((preset) => (
                 <button
                   key={preset}
-                  onClick={() => setAutoCashoutMultiplier(preset)}
+                  onClick={() => updateSetting('autoCashoutMultiplier', preset)}
                   className={`
                     flex-1 py-1 px-2 text-xs font-medium rounded
                     transition-all duration-200
