@@ -1,16 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import soundEffects from './utils/soundEffects.js';
 import { TelegramButton, useTelegramWebApp } from './TelegramWebApp.jsx';
+import { usePlayerSettings } from './hooks/usePlayerSettings.js';
 
 const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBalance, multiplier, hasBet, countdown, activeBet, cashedOutMultiplier }) => {
   // Telegram WebApp integration
   const { hapticFeedback, showAlert } = useTelegramWebApp();
   
-  // Auto-cashout state (persisted)
-  const [autoCashoutEnabled, setAutoCashoutEnabled] = useState(false);
-  const [autoCashoutMultiplier, setAutoCashoutMultiplier] = useState(2.0);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const lastUserIdRef = useRef(null);
+  // Player settings hook - handles all the loading/saving/caching for us
+  const { 
+    autoCashoutEnabled: savedAutoCashoutEnabled,
+    autoCashoutMultiplier: savedAutoCashoutMultiplier,
+    saveSettings,
+    loading: settingsLoading 
+  } = usePlayerSettings();
+  
+  // Local state for immediate UI updates
+  const [autoCashoutEnabled, setAutoCashoutEnabled] = useState(savedAutoCashoutEnabled);
+  const [autoCashoutMultiplier, setAutoCashoutMultiplier] = useState(savedAutoCashoutMultiplier);
   const [showAutoCashoutSettings, setShowAutoCashoutSettings] = useState(false);
   
   // Visual feedback state
@@ -31,91 +38,29 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
     }
   }, [multiplier, autoCashoutEnabled, autoCashoutMultiplier, gameState, activeBet, cashedOutMultiplier, onCashOut]);
 
-  // Load persisted settings when auth state changes
+  // Sync settings from hook when they change
   useEffect(() => {
-    let mounted = true;
-    
-    const loadSettings = async () => {
-      try {
-        const auth = (await import('./services/authService.js')).default;
-        if (!auth.isAuthenticated()) {
-          setSettingsLoaded(false);
-          return;
-        }
-        
-        const currentUser = auth.getUser();
-        const userId = currentUser?.id;
-        
-        // Check if user changed or settings not loaded
-        if (userId !== lastUserIdRef.current || !settingsLoaded) {
-          lastUserIdRef.current = userId;
-          
-          const res = await auth.getPlayerSettings();
-          if (mounted && res?.success && res.settings) {
-            if (typeof res.settings.autoCashoutEnabled === 'boolean') {
-              setAutoCashoutEnabled(res.settings.autoCashoutEnabled);
-            }
-            if (res.settings.autoCashoutMultiplier) {
-              setAutoCashoutMultiplier(parseFloat(res.settings.autoCashoutMultiplier));
-            }
-            setSettingsLoaded(true);
-            console.log('✅ Auto-cashout settings loaded');
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load auto-cashout settings:', error);
-      }
-    };
-    
-    // Initial load
-    loadSettings();
-    
-    // Listen for auth changes instead of polling
-    // Only reload settings when auth state actually changes
-    const handleAuthChange = () => {
-      if (mounted) {
-        loadSettings();
-      }
-    };
-    
-    // Check auth state every 30 seconds (much less frequent)
-    const interval = setInterval(handleAuthChange, 30000);
-    
-    // Also listen for visibility changes to reload when tab becomes active
-    const handleVisibilityChange = () => {
-      if (!document.hidden && mounted) {
-        loadSettings();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [settingsLoaded]);
+    setAutoCashoutEnabled(savedAutoCashoutEnabled);
+    setAutoCashoutMultiplier(savedAutoCashoutMultiplier);
+  }, [savedAutoCashoutEnabled, savedAutoCashoutMultiplier]);
 
   // Persist changes (debounced)
   useEffect(() => {
-    if (!settingsLoaded) return;
+    // Don't save if values haven't changed from saved values
+    if (autoCashoutEnabled === savedAutoCashoutEnabled && 
+        autoCashoutMultiplier === savedAutoCashoutMultiplier) {
+      return;
+    }
     
     const handle = setTimeout(async () => {
-      try {
-        const auth = (await import('./services/authService.js')).default;
-        if (!auth.isAuthenticated()) return;
-        
-        await auth.updatePlayerSettings({
-          autoCashoutEnabled,
-          autoCashoutMultiplier: Number(autoCashoutMultiplier)
-        });
-        console.log('✅ Auto-cashout settings saved');
-      } catch (error) {
-        console.error('Failed to save auto-cashout settings:', error);
-      }
+      await saveSettings({
+        autoCashoutEnabled,
+        autoCashoutMultiplier: Number(autoCashoutMultiplier)
+      });
     }, 500);
+    
     return () => clearTimeout(handle);
-  }, [autoCashoutEnabled, autoCashoutMultiplier, settingsLoaded]);
+  }, [autoCashoutEnabled, autoCashoutMultiplier, savedAutoCashoutEnabled, savedAutoCashoutMultiplier, saveSettings]);
   const handleDecrease = () => {
     setBetAmount(prev => Math.max(100, prev - 100));
   };

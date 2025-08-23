@@ -117,17 +117,35 @@ const authLimiter = rateLimit({
   validate: false, // Disable validation for production deployments
 });
 
-// Settings endpoints need higher limits due to polling
-const settingsLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes  
-  max: 300, // Higher limit for settings endpoints (polling every second)
-  message: 'Too many settings requests, please try again later.',
-  skip: (req) => req.method === 'OPTIONS', // Skip rate limiting for CORS preflight
-  validate: false, // Disable validation for production deployments
+// Separate rate limiters for reading vs writing settings
+const settingsReadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 600, // up to 10 req per second per IP
+  skip: (req) => req.method === 'OPTIONS',
+  validate: false,
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Too many requests, please try again later.',
+      retryAfter: req.rateLimit.resetTime
+    });
+  }
+});
+
+const settingsWriteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // writes are rarer
+  skip: (req) => req.method === 'OPTIONS',
+  validate: false,
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Too many settings updates, please try again later.',
+      retryAfter: req.rateLimit.resetTime
+    });
+  }
 });
 
 // Apply rate limiters (order matters - specific before general)
-app.use('/api/player/settings', settingsLimiter);
+// Note: We'll apply these directly on the routes instead of globally
 app.use('/api/auth/', authLimiter);
 
 // Exclude health and game-state endpoints from rate limiting
@@ -533,44 +551,53 @@ app.get('/api/leaderboard', authService.optionalAuth.bind(authService), async (r
 // PLAYER SETTINGS ROUTES (auth required)
 // =============================================================================
 
-app.get('/api/player/settings', authService.authenticateToken.bind(authService), async (req, res) => {
-  try {
-    const settings = await databaseService.getPlayerSettings(req.user.id);
-    res.json({ success: true, settings: settings || null });
-  } catch (error) {
-    console.error('❌ Player settings get error:', error);
-    res.status(500).json({ error: 'Failed to get settings' });
+app.get('/api/player/settings', 
+  authService.authenticateToken.bind(authService),
+  settingsReadLimiter,
+  async (req, res) => {
+    try {
+      const settings = await databaseService.getPlayerSettings(req.user.id);
+      res.set('Cache-Control', 'private, max-age=5'); // tiny cache
+      res.json({ success: true, settings: settings || null });
+    } catch (error) {
+      console.error('❌ Player settings get error:', error);
+      res.status(500).json({ error: 'Failed to get settings' });
+    }
   }
-});
+);
 
-app.put('/api/player/settings', authService.authenticateToken.bind(authService), async (req, res) => {
-  try {
-    const { 
-      autoCashoutEnabled, 
-      autoCashoutMultiplier, 
-      soundEnabled,
-      dailyLimitsEnabled,
-      maxDailyWager,
-      maxDailyLoss,
-      maxGamesPerDay
-    } = req.body || {};
-    
-    const payload = {};
-    if (typeof autoCashoutEnabled === 'boolean') payload.autoCashoutEnabled = autoCashoutEnabled;
-    if (typeof autoCashoutMultiplier === 'number') payload.autoCashoutMultiplier = autoCashoutMultiplier;
-    if (typeof soundEnabled === 'boolean') payload.soundEnabled = soundEnabled;
-    if (typeof dailyLimitsEnabled === 'boolean') payload.dailyLimitsEnabled = dailyLimitsEnabled;
-    if (typeof maxDailyWager === 'number') payload.maxDailyWager = maxDailyWager;
-    if (typeof maxDailyLoss === 'number') payload.maxDailyLoss = maxDailyLoss;
-    if (typeof maxGamesPerDay === 'number') payload.maxGamesPerDay = maxGamesPerDay;
+app.put('/api/player/settings', 
+  authService.authenticateToken.bind(authService),
+  settingsWriteLimiter,
+  async (req, res) => {
+    try {
+      const { 
+        autoCashoutEnabled, 
+        autoCashoutMultiplier, 
+        soundEnabled,
+        dailyLimitsEnabled,
+        maxDailyWager,
+        maxDailyLoss,
+        maxGamesPerDay
+      } = req.body || {};
+      
+      const payload = {};
+      if (typeof autoCashoutEnabled === 'boolean') payload.autoCashoutEnabled = autoCashoutEnabled;
+      if (typeof autoCashoutMultiplier === 'number') payload.autoCashoutMultiplier = autoCashoutMultiplier;
+      if (typeof soundEnabled === 'boolean') payload.soundEnabled = soundEnabled;
+      if (typeof dailyLimitsEnabled === 'boolean') payload.dailyLimitsEnabled = dailyLimitsEnabled;
+      if (typeof maxDailyWager === 'number') payload.maxDailyWager = maxDailyWager;
+      if (typeof maxDailyLoss === 'number') payload.maxDailyLoss = maxDailyLoss;
+      if (typeof maxGamesPerDay === 'number') payload.maxGamesPerDay = maxGamesPerDay;
 
-    const updated = await databaseService.upsertPlayerSettings(req.user.id, payload);
-    res.json({ success: true, settings: updated });
-  } catch (error) {
-    console.error('❌ Player settings update error:', error);
-    res.status(500).json({ error: 'Failed to update settings' });
+      const updated = await databaseService.upsertPlayerSettings(req.user.id, payload);
+      res.json({ success: true, settings: updated });
+    } catch (error) {
+      console.error('❌ Player settings update error:', error);
+      res.status(500).json({ error: 'Failed to update settings' });
+    }
   }
-});
+);
 
 // Crash point generation now uses provably fair system
 let currentGameRound = null;
