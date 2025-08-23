@@ -254,23 +254,22 @@ class DatabaseService {
   
   // ==================== GAME ROUND MANAGEMENT ====================
   
-  async createGameRound(crashPoint) {
+  async createGameRound(fairRoundData) {
     try {
-      // Generate provably fair seeds
-      const serverSeed = crypto.randomBytes(32).toString('hex');
-      const serverSeedHash = crypto.createHash('sha256').update(serverSeed).digest('hex');
-      
+      // fairRoundData should contain: serverSeed, serverSeedHash, clientSeed, nonce, crashPoint
       const gameRound = await prisma.gameRound.create({
         data: {
-          serverSeed,
-          serverSeedHash,
-          crashPoint,
+          serverSeed: fairRoundData.serverSeed,
+          serverSeedHash: fairRoundData.serverSeedHash,
+          clientSeed: fairRoundData.clientSeed || null,
+          nonce: fairRoundData.nonce || 0,
+          crashPoint: fairRoundData.crashPoint,
           startTime: new Date(),
           status: 'BETTING'
         }
       });
       
-      console.log(`🎮 Created game round ${gameRound.roundNumber} (crash: ${crashPoint}x)`);
+      console.log(`🎮 Created game round ${gameRound.roundNumber} (crash: ${fairRoundData.crashPoint}x)`);
       return gameRound;
     } catch (error) {
       console.error('❌ Error creating game round:', error);

@@ -654,7 +654,7 @@ function startGameLoop() {
     
     // Generate new game round with provably fair crash point
     const fairRound = provablyFairService.generateFairRound();
-    currentGameRound = await databaseService.createGameRound(fairRound.crashPoint);
+    currentGameRound = await databaseService.createGameRound(fairRound);
     gameState.crashPoint = fairRound.crashPoint;
     gameState.currentRoundHash = fairRound.serverSeedHash; // Show hash before round
     gameState.currentRoundSeed = fairRound.serverSeed; // Reveal after crash

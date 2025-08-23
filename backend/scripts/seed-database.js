@@ -50,13 +50,13 @@ async function seedDatabase() {
     // Create some sample game rounds for testing
     console.log('\n🎮 Creating sample game rounds...');
     
-    const sampleCrashPoints = [2.45, 1.89, 5.67, 1.23, 8.91, 3.45, 2.17, 12.34, 1.56, 4.78];
+    const provablyFairService = require('../services/provablyFairService');
     
-    for (let i = 0; i < sampleCrashPoints.length; i++) {
-      const crashPoint = sampleCrashPoints[i];
-      await databaseService.createGameRound(crashPoint);
+    for (let i = 0; i < 10; i++) {
+      const fairRound = provablyFairService.generateFairRound();
+      await databaseService.createGameRound(fairRound);
     }
-    console.log(`✅ Created ${sampleCrashPoints.length} sample game rounds`);
+    console.log(`✅ Created 10 sample game rounds with provably fair data`);
     
     // Set daily limits for demo user
     console.log('\n📊 Setting up daily limits...');
