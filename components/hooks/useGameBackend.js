@@ -49,15 +49,11 @@ export function useGameBackend() {
       // We are clearly connected if we receive gameState
       setIsConnected(true);
 
+      // Handle common game state
       setGameState(d.state);
       setMultiplier(d.multiplier);
       setCountdown(d.countdown);
       setPlayersOnline(d.playersOnline);
-      setHasActiveBet(d.hasActiveBet);
-      setActiveBetAmount(d.activeBetAmount);
-      setCashedOut(d.cashedOut);
-      setCashedOutMultiplier(d.cashedOutMultiplier);
-      setBalance(d.balance);
       if (d.crashHistory) {
         console.log('✅ Setting crash history:', d.crashHistory);
         setCrashHistory(d.crashHistory);
@@ -65,10 +61,39 @@ export function useGameBackend() {
         console.log('❌ No crash history in message');
       }
       
+      // Player-specific data might come in playerOverlay message
+      // If this message contains player data (old format), handle it
+      if ('hasActiveBet' in d) {
+        setHasActiveBet(d.hasActiveBet);
+        setActiveBetAmount(d.activeBetAmount);
+        setCashedOut(d.cashedOut);
+        setCashedOutMultiplier(d.cashedOutMultiplier);
+        setBalance(d.balance);
+        
+        // Handle crashed bets (when game crashes and player had active bet but didn't cash out)
+        if (d.state === 'crashed' && currentBetId && !d.cashedOut && d.hasActiveBet) {
+          console.log('💥 Recording crashed bet:', currentBetId);
+          betHistoryService.recordBetOutcome(currentBetId, d.multiplier, 0); // 0 winnings = loss
+          setCurrentBetId(null);
+        }
+      }
+    }
+    
+    if (msg.type === 'playerOverlay') {
+      const d = msg.data;
+      console.log('👤 Player overlay update:', d);
+      
+      // Update player-specific state
+      setHasActiveBet(d.hasActiveBet);
+      setActiveBetAmount(d.activeBetAmount);
+      setCashedOut(d.cashedOut);
+      setCashedOutMultiplier(d.cashedOutMultiplier);
+      setBalance(d.balance);
+      
       // Handle crashed bets (when game crashes and player had active bet but didn't cash out)
-      if (d.state === 'crashed' && currentBetId && !d.cashedOut && d.hasActiveBet) {
+      if (gameState === 'crashed' && currentBetId && !d.cashedOut && d.hasActiveBet) {
         console.log('💥 Recording crashed bet:', currentBetId);
-        betHistoryService.recordBetOutcome(currentBetId, d.multiplier, 0); // 0 winnings = loss
+        betHistoryService.recordBetOutcome(currentBetId, multiplier, 0); // 0 winnings = loss
         setCurrentBetId(null);
       }
     }

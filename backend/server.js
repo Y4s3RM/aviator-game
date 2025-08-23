@@ -21,8 +21,8 @@ const app = express();
 const server = http.createServer(app);
 
 // Trust proxy headers (required for Railway/Heroku/AWS)
-// Use specific number of proxies or loopback for Railway
-app.set('trust proxy', 'loopback');
+// Railway uses a single proxy, so we set trust proxy to 1
+app.set('trust proxy', 1);
 
 // Log all requests in development/debugging
 if (process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development') {
@@ -41,8 +41,8 @@ app.use(helmet({
     directives: {
       // API returns JSON; block everything by default
       defaultSrc: ["'none'"],
-      // Allow API consumers to call us
-      connectSrc: ["'self'", "*"] ,
+      // Allow API consumers to call us - specify exact origins
+      connectSrc: ["'self'", "wss://aviator-game-production.up.railway.app", "https://aviator-game-production.up.railway.app"],
       // Disallow framing except Telegram (documented hostnames)
       frameAncestors: ["'self'", "https://*.telegram.org"],
       // Basic allowances; API does not serve scripts/styles
@@ -574,6 +574,7 @@ app.put('/api/player/settings', authService.authenticateToken.bind(authService),
 
 // Crash point generation now uses provably fair system
 let currentGameRound = null;
+let countdownInterval = null; // Track countdown interval to prevent memory leaks
 
 // =============================================================================
 // GAME LOOP
@@ -581,6 +582,12 @@ let currentGameRound = null;
 function startGameLoop() {
   console.log('🎮 Game loop started');
   async function startBetting() {
+    // Clear any existing countdown interval to prevent memory leaks
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+    
     gameState.state = 'betting';
     gameState.multiplier = 1.0;
     gameState.countdown = 5;
@@ -594,11 +601,12 @@ function startGameLoop() {
     gameState.activeBets.clear();
     console.log(`💰 Betting phase. Crash at ${gameState.crashPoint.toFixed(2)}x`);
     broadcastAll();
-    const countdownInterval = setInterval(() => {
+    countdownInterval = setInterval(() => {
       gameState.countdown--;
       broadcastAll();
       if (gameState.countdown <= 0) {
         clearInterval(countdownInterval);
+        countdownInterval = null;
         startFlying();
       }
     }, 1000);
@@ -669,6 +677,18 @@ function heartbeat() {
 }
 
 function broadcastAll() {
+  // Optimize by stringifying common data once
+  const commonFrame = JSON.stringify({
+    type: 'gameState',
+    data: {
+      state: gameState.state,
+      multiplier: gameState.multiplier,
+      countdown: gameState.countdown,
+      playersOnline: gameState.players.size,
+      crashHistory: gameState.crashHistory
+    }
+  });
+  
   // send each player *their own state* (so we can highlight their bet/cashout)
   for (const [userId, p] of gameState.players.entries()) {
     if (p.ws.readyState !== WebSocket.OPEN) continue;
@@ -677,19 +697,18 @@ function broadcastAll() {
     // Get balance from user account or guest balance
     const balance = p.isGuest ? p.guestBalance : p.user.balance;
     
+    // Send common frame first
+    p.ws.send(commonFrame);
+    
+    // Then send personal overlay data
     p.ws.send(JSON.stringify({
-      type: 'gameState',
+      type: 'playerOverlay',
       data: {
-        state: gameState.state,
-        multiplier: gameState.multiplier,
-        countdown: gameState.countdown,
-        playersOnline: gameState.players.size,
         hasActiveBet: !!personalBet,
         activeBetAmount: personalBet?.amount || 0,
         cashedOut: personalBet?.cashedOut || false,
         cashedOutMultiplier: personalBet?.cashedOutMultiplier || 0,
         balance: balance,
-        crashHistory: gameState.crashHistory,
         isAuthenticated: !p.isGuest,
         user: p.isGuest ? null : p.user
       }
@@ -775,7 +794,14 @@ wss.on('connection', async (ws, req) => {
       ws._msgCount += 1;
       if (ws._msgCount > 10) {
         console.warn(`🚧 Rate limit exceeded for user ${ws.userId}`);
-        return; // Drop excess messages silently
+        // Send rate limit warning once per window
+        if (ws._msgCount === 11) {
+          ws.send(JSON.stringify({
+            type: 'warning',
+            data: { message: 'Rate limit exceeded. Please slow down your requests.' }
+          }));
+        }
+        return; // Drop excess messages
       }
 
       const data = JSON.parse(msg);
@@ -818,8 +844,11 @@ const heartbeatInterval = setInterval(() => {
       console.log(`💀 Terminating dead connection for user: ${ws.userId}`);
       return ws.terminate();
     }
-    ws.isAlive = false;
-    ws.ping();
+    // Check readyState before pinging to avoid errors
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.isAlive = false;
+      ws.ping();
+    }
   });
 }, 15000);
 
@@ -839,9 +868,29 @@ server.on('upgrade', (req, socket, head) => {
   }
 
   console.log(`✅ Upgrading connection to WebSocket on /ws`);
+  
+  // Check if client requested any subprotocols
+  const requestedProtocols = req.headers['sec-websocket-protocol'];
+  let acceptedProtocol = null;
+  
+  if (requestedProtocols) {
+    // Parse requested protocols
+    const protocols = requestedProtocols.split(',').map(p => p.trim());
+    
+    // We accept 'access_token' or any 'bearer.*' protocol
+    if (protocols.includes('access_token')) {
+      acceptedProtocol = 'access_token';
+    } else {
+      const bearerProtocol = protocols.find(p => p.startsWith('bearer.'));
+      if (bearerProtocol) {
+        acceptedProtocol = bearerProtocol;
+      }
+    }
+  }
+  
   wss.handleUpgrade(req, socket, head, (ws) => {
     wss.emit('connection', ws, req);
-  });
+  }, acceptedProtocol);
 });
 
 // =============================================================================
