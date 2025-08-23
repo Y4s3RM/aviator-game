@@ -184,7 +184,7 @@ function App() {
       const result = await authService.getPlayerSettings();
       if (result.success && result.settings) {
         setSoundEnabled(result.settings.soundEnabled);
-        soundEffects.setEnabled(result.settings.soundEnabled);
+        soundEffects.enabled = result.settings.soundEnabled;
         setSettingsLoaded(true);
         console.log('✅ Player settings loaded');
       }
