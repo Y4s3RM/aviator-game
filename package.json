@@ -6,6 +6,7 @@
   "main": "main.jsx",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/update-version.js",
     "build": "vite build",
     "preview": "vite preview"
   },

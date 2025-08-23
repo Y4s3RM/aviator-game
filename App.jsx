@@ -15,6 +15,7 @@ import soundEffects from './components/utils/soundEffects.js';
 import authService from './components/services/authService.js';
 import gameService from './components/services/gameService.js';
 import TelegramWebApp, { useTelegramWebApp, TelegramThemeStyles } from './components/TelegramWebApp.jsx';
+import UpdateChecker from './components/UpdateChecker.jsx';
 
 function App() {
   // Telegram WebApp integration
@@ -312,6 +313,7 @@ function App() {
   return (
     <TelegramWebApp>
       <TelegramThemeStyles />
+      <UpdateChecker />
       <div className="telegram-viewport bg-gray-900 text-white flex flex-col overflow-hidden" style={{ height: '-webkit-fill-available' }}>
       {/* Header - Mobile optimized */}
       <header className="bg-gray-800 shadow-lg flex-shrink-0">
