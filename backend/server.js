@@ -154,9 +154,27 @@ const settingsWriteLimiter = rateLimit({
   }
 });
 
+// Profile read limiter - more generous than auth limiter
+const profileReadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 1 request per second
+  skip: (req) => req.method === 'OPTIONS',
+  validate: false,
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Too many requests, please try again later.',
+      retryAfter: req.rateLimit.resetTime
+    });
+  }
+});
+
 // Apply rate limiters (order matters - specific before general)
 // Note: We'll apply these directly on the routes instead of globally
-app.use('/api/auth/', authLimiter);
+// Only apply auth limiter to actual auth endpoints (login, register, refresh)
+app.use('/api/auth/telegram', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
+app.use('/api/admin/login', authLimiter);
+app.use('/api/admin/register', authLimiter);
 
 // Exclude health, game-state, and player settings from global rate limiting
 app.use('/api/', (req, res, next) => {
@@ -394,12 +412,26 @@ app.post('/api/auth/logout', authService.authenticateToken.bind(authService), (r
 });
 
 // Get current user profile
-app.get('/api/auth/profile', authService.authenticateToken.bind(authService), (req, res) => {
-  res.json({
-    success: true,
-    user: req.user
-  });
-});
+app.get('/api/auth/profile', 
+  profileReadLimiter,
+  authService.authenticateToken.bind(authService), 
+  async (req, res) => {
+    try {
+      // Get fresh user data from database
+      const user = await databaseService.findUserById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.json({
+        success: true,
+        user: user
+      });
+    } catch (error) {
+      console.error('❌ Profile fetch error:', error);
+      res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+  }
+);
 
 // Update user profile
 app.put('/api/auth/profile', [

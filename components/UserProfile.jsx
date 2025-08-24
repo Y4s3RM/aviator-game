@@ -22,12 +22,16 @@ const UserProfile = ({ isOpen, onClose }) => {
       // Get cached user initially
       setUser(authService.getUser());
       
-      // Fetch fresh user data from backend
-      fetchUserProfile();
+      // Debounce profile fetch to avoid rapid requests
+      const fetchTimer = setTimeout(() => {
+        fetchUserProfile();
+      }, 100);
       
       if (activeTab === 'leaderboard') {
         loadLeaderboard();
       }
+      
+      return () => clearTimeout(fetchTimer);
     }
   }, [isOpen, activeTab]);
 
@@ -46,9 +50,17 @@ const UserProfile = ({ isOpen, onClose }) => {
 
   // Listen for balance updates and refresh profile
   useEffect(() => {
+    let lastFetchTime = 0;
+    const minFetchInterval = 1000; // Minimum 1 second between fetches
+    
     const handleBalanceUpdate = () => {
       if (isOpen) {
-        fetchUserProfile();
+        const now = Date.now();
+        // Throttle fetches to prevent rate limiting
+        if (now - lastFetchTime >= minFetchInterval) {
+          lastFetchTime = now;
+          fetchUserProfile();
+        }
       }
     };
 
