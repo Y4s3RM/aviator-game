@@ -803,17 +803,17 @@ function startGameLoop() {
 const wss = new WebSocket.Server({ 
   noServer: true,
   handleProtocols: (protocols, request) => {
-    // Check for access_token subprotocol
-    if (protocols.includes('access_token')) {
+    // Guard against undefined or empty protocols
+    if (!protocols || protocols.size === 0) return false;
+
+    // Check for access_token subprotocol using Set.has()
+    if (protocols.has('access_token')) {
       return 'access_token';
     }
-    // Check for bearer token in protocols
-    const bearerProtocol = protocols.find(p => p.startsWith('bearer.'));
-    if (bearerProtocol) {
-      return bearerProtocol;
-    }
-    // Default: no subprotocol
-    return false;
+
+    // Check for bearer token in protocols using spread operator for array methods
+    const bearerProtocol = [...protocols].find(p => p.startsWith('bearer.'));
+    return bearerProtocol || false;
   }
 });
 
