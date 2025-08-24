@@ -1218,52 +1218,53 @@ class DatabaseService {
 
   // ==================== ADMIN METHODS ====================
   
-  async getAdminStats() {
-    try {
-      const [
-        totalUsers,
-        totalGames,
-        totalBets,
-        activeUsers,
-        recentUsers
-      ] = await Promise.all([
-        prisma.user.count(),
-        prisma.gameRound.count(),
-        prisma.bet.count(),
-        prisma.user.count({ where: { isActive: true } }),
-        prisma.user.count({
-          where: {
-            createdAt: {
-              gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-            }
-          }
-        })
-      ]);
+  // NOTE: This method is duplicated - using the more comprehensive one below
+  // async getAdminStats() {
+  //   try {
+  //     const [
+  //       totalUsers,
+  //       totalGames,
+  //       totalBets,
+  //       activeUsers,
+  //       recentUsers
+  //     ] = await Promise.all([
+  //       prisma.user.count(),
+  //       prisma.gameRound.count(),
+  //       prisma.bet.count(),
+  //       prisma.user.count({ where: { isActive: true } }),
+  //       prisma.user.count({
+  //         where: {
+  //           createdAt: {
+  //             gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+  //           }
+  //         }
+  //       })
+  //     ]);
 
-      const totalWagered = await prisma.bet.aggregate({
-        _sum: { amount: true }
-      });
+  //     const totalWagered = await prisma.bet.aggregate({
+  //       _sum: { amount: true }
+  //     });
 
-      const totalWon = await prisma.bet.aggregate({
-        _sum: { payout: true },
-        where: { status: 'CASHED_OUT' }
-      });
+  //     const totalWon = await prisma.bet.aggregate({
+  //       _sum: { payout: true },
+  //       where: { status: 'CASHED_OUT' }
+  //     });
 
-      return {
-        totalUsers,
-        totalGames,
-        totalBets,
-        activeUsers,
-        recentUsers,
-        totalWagered: totalWagered._sum.amount || 0,
-        totalWon: totalWon._sum.payout || 0,
-        houseProfit: (totalWagered._sum.amount || 0) - (totalWon._sum.payout || 0)
-      };
-    } catch (error) {
-      console.error('❌ Error getting admin stats:', error);
-      throw error;
-    }
-  }
+  //     return {
+  //       totalUsers,
+  //       totalGames,
+  //       totalBets,
+  //       activeUsers,
+  //       recentUsers,
+  //       totalWagered: totalWagered._sum.amount || 0,
+  //       totalWon: totalWon._sum.payout || 0,
+  //       houseProfit: (totalWagered._sum.amount || 0) - (totalWon._sum.payout || 0)
+  //     };
+  //   } catch (error) {
+  //     console.error('❌ Error getting admin stats:', error);
+  //     throw error;
+  //   }
+  // }
 
   async getAllUsers(page = 1, limit = 50, search = '') {
     try {
@@ -1354,6 +1355,334 @@ class DatabaseService {
       };
     } catch (error) {
       console.error('❌ Error getting game rounds:', error);
+      throw error;
+    }
+  }
+
+  // ==================== ADMIN METHODS ====================
+  
+  async incrementBalance(userId, amount) {
+    try {
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          balance: {
+            increment: amount
+          }
+        }
+      });
+      
+      return this.sanitizeUser(user);
+    } catch (error) {
+      console.error('❌ Error incrementing balance:', error);
+      throw error;
+    }
+  }
+
+  async getGameRoundWithBets(roundId) {
+    try {
+      const round = await prisma.gameRound.findUnique({
+        where: { id: roundId },
+        include: {
+          bets: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      return round;
+    } catch (error) {
+      console.error('❌ Error getting game round with bets:', error);
+      return null;
+    }
+  }
+
+  async getReferralById(referralId) {
+    try {
+      return await prisma.referral.findUnique({
+        where: { id: referralId },
+        include: {
+          referrer: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          },
+          invitee: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error getting referral:', error);
+      return null;
+    }
+  }
+
+  async approveReferral(referralId, adminUserId) {
+    try {
+      const referral = await prisma.referral.findUnique({
+        where: { id: referralId },
+        include: {
+          referrer: true,
+          invitee: true
+        }
+      });
+
+      if (!referral) {
+        throw new Error('Referral not found');
+      }
+
+      if (referral.referrerRewardStatus !== 'PENDING') {
+        throw new Error('Referral is not pending');
+      }
+
+      // Process payment
+      const result = await prisma.$transaction(async (tx) => {
+        const referrerBonus = 1000;
+        const newBalance = parseFloat(referral.referrer.balance) + referrerBonus;
+
+        await tx.user.update({
+          where: { id: referral.referrerUserId },
+          data: { balance: newBalance }
+        });
+
+        await tx.referral.update({
+          where: { id: referralId },
+          data: {
+            referrerRewardStatus: 'PAID',
+            activationEventAt: new Date(),
+            notes: `Approved by admin ${adminUserId}`
+          }
+        });
+
+        await tx.transaction.create({
+          data: {
+            userId: referral.referrerUserId,
+            type: 'BONUS',
+            amount: referrerBonus,
+            balanceBefore: parseFloat(referral.referrer.balance),
+            balanceAfter: newBalance,
+            description: `Admin-approved referral for ${referral.invitee.username}`,
+            metadata: {
+              type: 'referral_activation_bonus',
+              inviteeId: referral.inviteeUserId,
+              referralId: referral.id,
+              approvedBy: adminUserId
+            }
+          }
+        });
+
+        return { success: true };
+      });
+
+      return result;
+    } catch (error) {
+      console.error('❌ Error approving referral:', error);
+      throw error;
+    }
+  }
+
+  async rejectReferral(referralId, adminUserId, reason) {
+    try {
+      const referral = await prisma.referral.update({
+        where: { id: referralId },
+        data: {
+          referrerRewardStatus: 'REJECTED',
+          notes: `Rejected by admin ${adminUserId}: ${reason}`
+        }
+      });
+
+      return { success: true, referral };
+    } catch (error) {
+      console.error('❌ Error rejecting referral:', error);
+      throw error;
+    }
+  }
+
+  async createAdminChangeRequest(data) {
+    try {
+      return await prisma.adminChangeRequest.create({
+        data
+      });
+    } catch (error) {
+      console.error('❌ Error creating admin change request:', error);
+      throw error;
+    }
+  }
+
+  async getAdminStats() {
+    try {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+
+      const [
+        totalUsers,
+        activeToday,
+        activeThisWeek,
+        roundsToday,
+        totalBetsToday,
+        uniquePlayersToday,
+        totalWageredToday,
+        totalWonToday,
+        referralsToday,
+        activationsToday
+      ] = await Promise.all([
+        // Total users
+        prisma.user.count(),
+        
+        // Active users today
+        prisma.user.count({
+          where: {
+            lastLoginAt: {
+              gte: today
+            }
+          }
+        }),
+        
+        // Active users this week
+        prisma.user.count({
+          where: {
+            lastLoginAt: {
+              gte: weekAgo
+            }
+          }
+        }),
+        
+        // Rounds today
+        prisma.gameRound.count({
+          where: {
+            createdAt: {
+              gte: today
+            }
+          }
+        }),
+        
+        // Total bets today
+        prisma.bet.count({
+          where: {
+            placedAt: {
+              gte: today
+            }
+          }
+        }),
+        
+        // Unique players today
+        prisma.bet.findMany({
+          where: {
+            placedAt: {
+              gte: today
+            }
+          },
+          select: {
+            userId: true
+          },
+          distinct: ['userId']
+        }).then(bets => bets.length),
+        
+        // Total wagered today
+        prisma.bet.aggregate({
+          where: {
+            placedAt: {
+              gte: today
+            }
+          },
+          _sum: {
+            amount: true
+          }
+        }).then(result => result._sum.amount || 0),
+        
+        // Total won today
+        prisma.bet.aggregate({
+          where: {
+            placedAt: {
+              gte: today
+            },
+            status: 'CASHED_OUT'
+          },
+          _sum: {
+            payout: true
+          }
+        }).then(result => result._sum.payout || 0),
+        
+        // Referrals today
+        prisma.referral.count({
+          where: {
+            createdAt: {
+              gte: today
+            }
+          }
+        }),
+        
+        // Activations today
+        prisma.referral.count({
+          where: {
+            activationEventAt: {
+              gte: today
+            },
+            referrerRewardStatus: 'PAID'
+          }
+        })
+      ]);
+
+      // Calculate derived metrics
+      const houseEdgeToday = totalWageredToday - totalWonToday;
+      const avgCrashToday = await prisma.gameRound.aggregate({
+        where: {
+          createdAt: {
+            gte: today
+          },
+          status: 'CRASHED'
+        },
+        _avg: {
+          crashPoint: true
+        }
+      }).then(result => result._avg.crashPoint || 0);
+
+      return {
+        users: {
+          total: totalUsers,
+          activeToday,
+          activeThisWeek,
+          percentActiveToday: totalUsers > 0 ? ((activeToday / totalUsers) * 100).toFixed(1) : 0
+        },
+        gameplay: {
+          roundsToday,
+          betsToday: totalBetsToday,
+          uniquePlayersToday,
+          avgBetsPerPlayer: uniquePlayersToday > 0 ? (totalBetsToday / uniquePlayersToday).toFixed(1) : 0,
+          avgCrashToday: parseFloat(avgCrashToday).toFixed(2)
+        },
+        economy: {
+          totalWageredToday: parseFloat(totalWageredToday).toFixed(0),
+          totalWonToday: parseFloat(totalWonToday).toFixed(0),
+          houseEdgeToday: parseFloat(houseEdgeToday).toFixed(0),
+          houseEdgePercent: totalWageredToday > 0 ? ((houseEdgeToday / totalWageredToday) * 100).toFixed(1) : 0
+        },
+        referrals: {
+          newToday: referralsToday,
+          activatedToday: activationsToday,
+          conversionRate: referralsToday > 0 ? ((activationsToday / referralsToday) * 100).toFixed(1) : 0
+        }
+      };
+    } catch (error) {
+      console.error('❌ Error getting admin stats:', error);
       throw error;
     }
   }

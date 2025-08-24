@@ -63,6 +63,9 @@ model User {
   referredUsers     User[]    @relation("ReferralRelation")
   referralsAsReferrer Referral[] @relation("ReferrerRelation")
   referralAsInvitee   Referral? @relation("InviteeRelation")
+  adminAuditLogs    AdminAuditLog[]
+  requestedChanges  AdminChangeRequest[] @relation("RequestedChanges")
+  approvedChanges   AdminChangeRequest[] @relation("ApprovedChanges")
   
   @@map("users")
 }
@@ -291,4 +294,52 @@ enum ReferralStatus {
   APPROVED
   REJECTED
   PAID
+}
+
+// Admin audit logging
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String
+  action      String   // e.g., 'USER_BALANCE_ADJUST', 'USER_BAN'
+  targetType  String   // 'USER' | 'ROUND' | 'REFERRAL' | 'SYSTEM'
+  targetId    String
+  before      Json?
+  after       Json?
+  notes       String?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  adminUser   User     @relation(fields: [adminUserId], references: [id])
+  
+  @@index([targetType, targetId])
+  @@index([adminUserId])
+  @@map("admin_audit_logs")
+}
+
+// Admin change requests for dual-control
+model AdminChangeRequest {
+  id               String   @id @default(cuid())
+  action           String   // 'USER_BALANCE_ADJUST'
+  payload          Json
+  requestedBy      String
+  approvedBy       String?
+  status           AdminRequestStatus @default(PENDING)
+  resolutionNotes  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Relations
+  requestedByUser  User     @relation("RequestedChanges", fields: [requestedBy], references: [id])
+  approvedByUser   User?    @relation("ApprovedChanges", fields: [approvedBy], references: [id])
+  
+  @@map("admin_change_requests")
+}
+
+enum AdminRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
 }

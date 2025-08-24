@@ -13,6 +13,7 @@ import RanksPanel from './components/RanksPanel.jsx';
 import FairnessPage from './components/FairnessPage.jsx';
 import WorkPanel from './components/WorkPanel.jsx';
 import FriendsPanel from './components/FriendsPanel.jsx';
+import AdminDashboard from './components/admin/AdminDashboard.jsx';
 import { useGameBackend } from './components/hooks/useGameBackend.js';
 import soundEffects from './components/utils/soundEffects.js';
 import authService from './components/services/authService.js';
@@ -61,6 +62,7 @@ function App() {
   const [showFairnessPage, setShowFairnessPage] = useState(false);
   const [showWorkPanel, setShowWorkPanel] = useState(false);
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [prevGameState, setPrevGameState] = useState(gameState);
   const [prevCountdown, setPrevCountdown] = useState(countdown);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -461,6 +463,17 @@ function App() {
                 <span className="text-xs sm:text-sm">🎲</span>
               </button>
 
+              {/* Admin Dashboard Button - Only for Admin Users */}
+              {isAuthenticated && authService.getUser()?.role === 'ADMIN' && (
+                <button 
+                  onClick={() => setShowAdminDashboard(true)}
+                  className="w-8 h-8 sm:w-10 sm:h-10 bg-red-700 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                  title="Admin Dashboard"
+                >
+                  <span className="text-xs sm:text-sm">⚡</span>
+                </button>
+              )}
+
               <button 
                 onClick={() => setShowBackendTest(true)}
                 className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-700 text-gray-300 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
@@ -591,6 +604,12 @@ function App() {
           setShowFriendsPanel(false);
           setActiveNavTab('Play');
         }}
+      />
+
+      {/* Admin Dashboard - Only for Admin Users */}
+      <AdminDashboard
+        isOpen={showAdminDashboard}
+        onClose={() => setShowAdminDashboard(false)}
       />
 
       {/* Authentication Modal */}

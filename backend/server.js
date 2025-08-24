@@ -13,6 +13,8 @@ require('dotenv').config();
 const databaseService = require('./services/databaseService');
 const provablyFairService = require('./services/provablyFairService');
 const authService = require('./authService');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 // Import error handling middleware
 const { AppError, asyncHandler, errorHandler, notFound } = require('./middleware/errorHandler');
@@ -517,38 +519,38 @@ app.post('/api/auth/change-password', [
 // ADMIN MIDDLEWARE
 // =============================================================================
 
-// Admin authentication middleware
-const requireAdmin = async (req, res, next) => {
-  try {
-    // First authenticate the token
-    await authService.authenticateToken(req, res, () => {});
-    
-    // Check if user is admin
-    if (!req.user || req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-    
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Authentication failed' });
-  }
-};
+// Import admin middleware and audit service
+const { requireAdmin } = require('./middleware/adminMiddleware');
+const adminAudit = require('./services/adminAuditService');
 
 // =============================================================================
 // ADMIN ROUTES
 // =============================================================================
 
-// Admin dashboard stats
+// Admin dashboard stats (enhanced)
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
   try {
     const stats = await databaseService.getAdminStats();
+    
+    // Add WebSocket stats
+    const wsStats = {
+      connectedClients: gameState.players.size,
+      activeBets: gameState.activeBets.size,
+      currentState: gameState.state,
+      currentMultiplier: gameState.multiplier,
+      roundId: currentGameRound?.id || null
+    };
+    
     res.json({
       success: true,
-      stats
+      stats: {
+        ...stats,
+        websocket: wsStats
+      }
     });
   } catch (error) {
     console.error('❌ Admin stats error:', error);
-    res.status(500).json({ error: 'Failed to get admin stats' });
+    res.status(500).json({ error: 'Failed to get stats' });
   }
 });
 
@@ -590,6 +592,156 @@ app.put('/api/admin/users/:userId', [
   }
 });
 
+// Get single user details (admin only)
+app.get('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  try {
+    const user = await databaseService.findUserById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get additional user stats
+    const [bets, referrals] = await Promise.all([
+      databaseService.getUserBets(req.params.id, 1, 10),
+      databaseService.getReferralStats(req.params.id)
+    ]);
+    
+    res.json({ 
+      success: true, 
+      user,
+      recentBets: bets.bets,
+      referralStats: referrals
+    });
+  } catch (error) {
+    console.error('❌ Admin get user error:', error);
+    res.status(500).json({ error: 'Failed to get user' });
+  }
+});
+
+// Adjust user balance (admin only)
+app.post('/api/admin/users/:id/adjust-balance', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, reason } = req.body || {};
+    
+    if (!Number.isFinite(amount) || !reason) {
+      return res.status(400).json({ error: 'Invalid amount or missing reason' });
+    }
+
+    const before = await databaseService.findUserById(id);
+    if (!before) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check for dual control
+    if (process.env.ADMIN_DUAL_CONTROL === 'true') {
+      const changeRequest = await databaseService.createAdminChangeRequest({
+        action: 'USER_BALANCE_ADJUST',
+        payload: { userId: id, amount, reason },
+        requestedBy: req.admin.id
+      });
+      
+      await adminAudit.log({
+        adminUserId: req.admin.id,
+        action: 'CHANGE_REQUEST_CREATE',
+        targetType: 'USER',
+        targetId: id,
+        before: null,
+        after: changeRequest,
+        notes: reason,
+        ip: req.admin.ip,
+        userAgent: req.admin.userAgent
+      });
+      
+      return res.json({ success: true, pendingRequestId: changeRequest.id });
+    }
+
+    // Immediate change
+    const after = await databaseService.incrementBalance(id, amount);
+    
+    await adminAudit.log({
+      adminUserId: req.admin.id,
+      action: 'USER_BALANCE_ADJUST',
+      targetType: 'USER',
+      targetId: id,
+      before,
+      after,
+      notes: `${reason} (Amount: ${amount})`,
+      ip: req.admin.ip,
+      userAgent: req.admin.userAgent
+    });
+
+    res.json({ success: true, user: after });
+  } catch (error) {
+    console.error('❌ Admin adjust balance error:', error);
+    res.status(500).json({ error: 'Failed to adjust balance' });
+  }
+});
+
+// Ban user (admin only)
+app.post('/api/admin/users/:id/ban', requireAdmin, async (req, res) => {
+  try {
+    const before = await databaseService.findUserById(req.params.id);
+    if (!before) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const result = await databaseService.updateUser(req.params.id, { isActive: false });
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    await adminAudit.log({
+      adminUserId: req.admin.id,
+      action: 'USER_BAN',
+      targetType: 'USER',
+      targetId: req.params.id,
+      before,
+      after: result.user,
+      notes: req.body?.reason || null,
+      ip: req.admin.ip,
+      userAgent: req.admin.userAgent
+    });
+
+    res.json({ success: true, user: result.user });
+  } catch (error) {
+    console.error('❌ Admin ban user error:', error);
+    res.status(500).json({ error: 'Failed to ban user' });
+  }
+});
+
+// Unban user (admin only)
+app.post('/api/admin/users/:id/unban', requireAdmin, async (req, res) => {
+  try {
+    const before = await databaseService.findUserById(req.params.id);
+    if (!before) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const result = await databaseService.updateUser(req.params.id, { isActive: true });
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    await adminAudit.log({
+      adminUserId: req.admin.id,
+      action: 'USER_UNBAN',
+      targetType: 'USER',
+      targetId: req.params.id,
+      before,
+      after: result.user,
+      notes: req.body?.reason || null,
+      ip: req.admin.ip,
+      userAgent: req.admin.userAgent
+    });
+
+    res.json({ success: true, user: result.user });
+  } catch (error) {
+    console.error('❌ Admin unban user error:', error);
+    res.status(500).json({ error: 'Failed to unban user' });
+  }
+});
+
 // Get game rounds (admin only)
 app.get('/api/admin/game-rounds', requireAdmin, async (req, res) => {
   try {
@@ -602,6 +754,232 @@ app.get('/api/admin/game-rounds', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('❌ Admin get game rounds error:', error);
     res.status(500).json({ error: 'Failed to get game rounds' });
+  }
+});
+
+// Get single game round details (admin only)
+app.get('/api/admin/game-rounds/:id', requireAdmin, async (req, res) => {
+  try {
+    const round = await databaseService.getGameRoundWithBets(req.params.id);
+    if (!round) {
+      return res.status(404).json({ error: 'Round not found' });
+    }
+    res.json({ success: true, round });
+  } catch (error) {
+    console.error('❌ Admin get round error:', error);
+    res.status(500).json({ error: 'Failed to get round' });
+  }
+});
+
+// =============================================================================
+// ADMIN REFERRAL MANAGEMENT
+// =============================================================================
+
+// Get referrals list (admin only)
+app.get('/api/admin/referrals', requireAdmin, async (req, res) => {
+  try {
+    const { 
+      status = null, 
+      page = 1, 
+      limit = 50, 
+      search = '' 
+    } = req.query;
+    
+    const where = {};
+    if (status) where.referrerRewardStatus = status;
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const [referrals, total] = await Promise.all([
+      prisma.referral.findMany({
+        where,
+        include: {
+          referrer: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          },
+          invitee: {
+            select: {
+              id: true,
+              username: true,
+              email: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        skip,
+        take: parseInt(limit)
+      }),
+      prisma.referral.count({ where })
+    ]);
+    
+    res.json({
+      success: true,
+      referrals,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+  } catch (error) {
+    console.error('❌ Admin get referrals error:', error);
+    res.status(500).json({ error: 'Failed to get referrals' });
+  }
+});
+
+// Approve referral (admin only)
+app.post('/api/admin/referrals/:id/approve', requireAdmin, async (req, res) => {
+  try {
+    const before = await databaseService.getReferralById(req.params.id);
+    if (!before) {
+      return res.status(404).json({ error: 'Referral not found' });
+    }
+
+    const result = await databaseService.approveReferral(req.params.id, req.admin.id);
+    const after = await databaseService.getReferralById(req.params.id);
+
+    await adminAudit.log({
+      adminUserId: req.admin.id,
+      action: 'REFERRAL_APPROVE',
+      targetType: 'REFERRAL',
+      targetId: req.params.id,
+      before,
+      after,
+      notes: req.body?.notes || null,
+      ip: req.admin.ip,
+      userAgent: req.admin.userAgent
+    });
+
+    res.json({ success: true, referral: after });
+  } catch (error) {
+    console.error('❌ Admin approve referral error:', error);
+    res.status(500).json({ error: 'Failed to approve referral' });
+  }
+});
+
+// Reject referral (admin only)
+app.post('/api/admin/referrals/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    const before = await databaseService.getReferralById(req.params.id);
+    if (!before) {
+      return res.status(404).json({ error: 'Referral not found' });
+    }
+
+    const result = await databaseService.rejectReferral(
+      req.params.id,
+      req.admin.id,
+      req.body?.reason || 'Admin rejected'
+    );
+    const after = await databaseService.getReferralById(req.params.id);
+
+    await adminAudit.log({
+      adminUserId: req.admin.id,
+      action: 'REFERRAL_REJECT',
+      targetType: 'REFERRAL',
+      targetId: req.params.id,
+      before,
+      after,
+      notes: req.body?.reason || null,
+      ip: req.admin.ip,
+      userAgent: req.admin.userAgent
+    });
+
+    res.json({ success: true, referral: after });
+  } catch (error) {
+    console.error('❌ Admin reject referral error:', error);
+    res.status(500).json({ error: 'Failed to reject referral' });
+  }
+});
+
+// =============================================================================
+// ADMIN PLAYER SETTINGS
+// =============================================================================
+
+// Get player settings (admin only)
+app.get('/api/admin/users/:id/settings', requireAdmin, async (req, res) => {
+  try {
+    const settings = await databaseService.getPlayerSettings(req.params.id);
+    res.json({ success: true, settings });
+  } catch (error) {
+    console.error('❌ Admin get player settings error:', error);
+    res.status(500).json({ error: 'Failed to get player settings' });
+  }
+});
+
+// Update player settings (admin only)
+app.put('/api/admin/users/:id/settings', requireAdmin, async (req, res) => {
+  try {
+    const before = await databaseService.getPlayerSettings(req.params.id);
+    const result = await databaseService.updatePlayerSettings(req.params.id, req.body);
+    const after = await databaseService.getPlayerSettings(req.params.id);
+
+    await adminAudit.log({
+      adminUserId: req.admin.id,
+      action: 'PLAYER_SETTINGS_UPDATE',
+      targetType: 'USER',
+      targetId: req.params.id,
+      before,
+      after,
+      notes: 'Admin override',
+      ip: req.admin.ip,
+      userAgent: req.admin.userAgent
+    });
+
+    res.json({ success: true, settings: after });
+  } catch (error) {
+    console.error('❌ Admin update player settings error:', error);
+    res.status(500).json({ error: 'Failed to update player settings' });
+  }
+});
+
+// =============================================================================
+// ADMIN AUDIT LOG
+// =============================================================================
+
+// Get audit logs (admin only)
+app.get('/api/admin/audit-logs', requireAdmin, async (req, res) => {
+  try {
+    const {
+      action = null,
+      targetType = null,
+      adminUserId = null,
+      startDate = null,
+      endDate = null,
+      page = 1,
+      limit = 50
+    } = req.query;
+
+    const result = await adminAudit.searchLogs({
+      action,
+      targetType,
+      adminUserId,
+      startDate,
+      endDate,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('❌ Admin get audit logs error:', error);
+    res.status(500).json({ error: 'Failed to get audit logs' });
+  }
+});
+
+// Get audit logs for specific target (admin only)
+app.get('/api/admin/audit-logs/:targetType/:targetId', requireAdmin, async (req, res) => {
+  try {
+    const { targetType, targetId } = req.params;
+    const logs = await adminAudit.getLogsForTarget(targetType, targetId);
+    res.json({ success: true, logs });
+  } catch (error) {
+    console.error('❌ Admin get target audit logs error:', error);
+    res.status(500).json({ error: 'Failed to get audit logs' });
   }
 });
 
