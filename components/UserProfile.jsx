@@ -223,8 +223,14 @@ const UserProfile = ({ isOpen, onClose, initialTab }) => {
     });
   };
 
-  const formatCurrency = (amount) => {
+  const formatCurrency = (amount, useCompact = false) => {
     const n = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+    if (useCompact && n >= 1000) {
+      if (n >= 1000000) {
+        return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M pts';
+      }
+      return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k pts';
+    }
     return n.toLocaleString() + ' pts';
   };
 
@@ -337,7 +343,7 @@ const UserProfile = ({ isOpen, onClose, initialTab }) => {
               {user && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-green-400">{formatCurrency(user.balance)}</div>
+                  <div className="text-2xl font-bold text-green-400">{formatCurrency(user.balance, true)}</div>
                   <div className="text-sm text-gray-400">Balance</div>
                 </div>
                 <div className="bg-gray-800 rounded-lg p-4 text-center">

@@ -16,6 +16,19 @@ const WorkPanel = ({ isOpen, onClose }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Format currency with k/M notation
+  const formatCompact = (num) => {
+    if (!num) return '0';
+    const n = Number(num);
+    if (n >= 1000000) {
+      return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    }
+    if (n >= 1000) {
+      return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    }
+    return n.toLocaleString();
+  };
+
   const loadFarmingStatus = useCallback(async () => {
     try {
       const result = await authService.getFarmingStatus();
@@ -160,7 +173,7 @@ const WorkPanel = ({ isOpen, onClose }) => {
           <div className="text-center mb-6">
             <div className="text-gray-400 text-sm">Current Balance</div>
             <div className="text-3xl font-bold text-yellow-400">
-              {user ? user.balance.toLocaleString() : '0'} pts
+              {user ? formatCompact(user.balance) : '0'} pts
             </div>
           </div>
 
@@ -181,7 +194,7 @@ const WorkPanel = ({ isOpen, onClose }) => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">🌾 Points Farming</h3>
               <div className="text-yellow-400 font-bold">
-                +{(farmingStatus.rewardPoints || 6000).toLocaleString()} pts
+                +{formatCompact(farmingStatus.rewardPoints || 6000)} pts
               </div>
             </div>
 

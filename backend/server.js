@@ -675,6 +675,26 @@ app.post('/api/farming/claim',
         return res.status(400).json(result);
       }
 
+      // Update cached balance if player is connected
+      const player = gameState.players.get(userId);
+      if (player && player.user) {
+        player.user.balance = result.newBalance;
+        // Force a player overlay update to sync the UI
+        if (player.ws && player.ws.readyState === WebSocket.OPEN) {
+          const personalBet = gameState.activeBets.get(userId);
+          player.ws.send(JSON.stringify({
+            type: 'playerOverlay',
+            data: {
+              hasActiveBet: !!personalBet,
+              activeBetAmount: personalBet?.amount || 0,
+              cashedOut: personalBet?.cashedOut || false,
+              cashedOutMultiplier: personalBet?.cashedOutMultiplier || 0,
+              balance: result.newBalance
+            }
+          }));
+        }
+      }
+
       res.json(result);
     } catch (error) {
       console.error('❌ Farming claim error:', error);

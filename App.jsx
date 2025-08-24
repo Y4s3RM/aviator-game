@@ -98,6 +98,17 @@ function App() {
     setNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
 
+  // Format number to k/M format
+  const formatCompactNumber = (num) => {
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    }
+    return num.toString();
+  };
+
   const handleLogout = useCallback(async () => {
     try {
       await authService.logout();
@@ -374,7 +385,7 @@ function App() {
                 {isAuthenticated ? 'Balance' : 'Demo Balance'}
               </div>
               <div className={`font-bold text-sm sm:text-base ${isAuthenticated ? 'text-green-400' : 'text-yellow-400'}`}>
-                {playerBalance} pts
+                {formatCompactNumber(playerBalance)} pts
               </div>
             </div>
             
