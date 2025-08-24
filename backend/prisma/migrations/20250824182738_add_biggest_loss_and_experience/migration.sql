@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "public"."users" ADD COLUMN     "biggestLoss" DECIMAL(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "experience" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "level" INTEGER NOT NULL DEFAULT 1;

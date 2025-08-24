@@ -3,6 +3,8 @@ import betHistoryService from './services/betHistoryService.js';
 import authService from './services/authService.js';
 import { usePlayerSettings } from './hooks/usePlayerSettings.js';
 
+// Deprecated: this panel has been replaced by dedicated tabs in UserProfile.
+// Keeping a lightweight component stub to avoid import errors until fully removed from codebase.
 const StatsPanel = ({ isOpen, onClose }) => {
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState([]);
@@ -129,12 +131,10 @@ const StatsPanel = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs (History and Limits moved to Profile) */}
         <div className="flex border-b border-gray-700">
           {[
-            { id: 'overview', label: 'Overview', icon: '📈' },
-            { id: 'history', label: 'History', icon: '📋' },
-            { id: 'limits', label: 'Limits', icon: '⚠️' }
+            { id: 'overview', label: 'Overview', icon: '📈' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -165,14 +165,25 @@ const StatsPanel = ({ isOpen, onClose }) => {
                       View your profile for lifetime stats.
                     </span>
                   </div>
-                  <button
-                    onClick={() => {
-                      window.dispatchEvent(new Event('showUserProfile'));
-                    }}
-                    className="text-blue-400 hover:text-blue-300 text-xs underline"
-                  >
-                    View Profile
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('openUserProfile', { detail: { tab: 'history' } }));
+                      }}
+                      className="text-blue-400 hover:text-blue-300 text-xs underline"
+                    >
+                      View Full History
+                    </button>
+                    <span className="text-gray-600">•</span>
+                    <button
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('openUserProfile', { detail: { tab: 'limits' } }));
+                      }}
+                      className="text-blue-400 hover:text-blue-300 text-xs underline"
+                    >
+                      Manage Limits
+                    </button>
+                  </div>
                 </div>
               </div>
               {/* Key Metrics */}

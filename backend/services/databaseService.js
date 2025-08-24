@@ -412,13 +412,17 @@ class DatabaseService {
         });
         
         // Update user balance
+        // Calculate experience based on win multiplier
+        const expGained = Math.min(50, Math.floor(10 + (multiplier * 5))); // 10 base + 5 per multiplier, max 50
+        
         await tx.user.update({
           where: { id: bet.userId },
           data: { 
             balance: balanceAfter,
             totalWon: { increment: payout },
             biggestWin: { set: Math.max(parseFloat(bet.user.biggestWin), payout) },
-            gamesPlayed: { increment: 1 }
+            gamesPlayed: { increment: 1 },
+            experience: { increment: expGained }
           }
         });
         
@@ -437,6 +441,9 @@ class DatabaseService {
         
         return updatedBet;
       });
+      
+      // Update user level based on new experience
+      await this.updateUserLevel(result.userId);
       
       console.log(`💰 Bet cashed out: ${betId} at ${multiplier}x (payout: ${result.payout})`);
       return result;
@@ -471,11 +478,23 @@ class DatabaseService {
           });
           
           // Update user stats
+          const betAmount = parseFloat(bet.amount);
+          const currentUser = await tx.user.findUnique({
+            where: { id: bet.userId },
+            select: { biggestLoss: true }
+          });
+          
           await tx.user.update({
             where: { id: bet.userId },
             data: {
-              totalLost: { increment: parseFloat(bet.amount) },
-              gamesPlayed: { increment: 1 }
+              totalLost: { increment: betAmount },
+              gamesPlayed: { increment: 1 },
+              // Update biggest loss if this is larger
+              biggestLoss: betAmount > parseFloat(currentUser.biggestLoss || 0) 
+                ? betAmount 
+                : currentUser.biggestLoss,
+              // Add experience for playing (even on loss)
+              experience: { increment: 5 }
             }
           });
           
@@ -498,8 +517,13 @@ class DatabaseService {
           lostBets++;
         }
         
-        return { lostBets, totalBets: activeBets.length };
+        return { lostBets, totalBets: activeBets.length, userIds: activeBets.map(bet => bet.userId) };
       });
+      
+      // Update levels for all affected users
+      for (const userId of result.userIds) {
+        await this.updateUserLevel(userId);
+      }
       
       console.log(`💥 Crashed ${result.lostBets} bets at ${crashPoint}x`);
       return result;
@@ -680,7 +704,10 @@ class DatabaseService {
           totalWagered: true,
           totalLost: true,
           gamesPlayed: true,
-          biggestWin: true
+          biggestWin: true,
+          biggestLoss: true,
+          experience: true,
+          level: true
         },
         include: {
           bets: {
@@ -813,7 +840,9 @@ class DatabaseService {
         where: { id: userId },
         data: {
           balance: newBalance,
-          lastClaimedAt: now
+          lastClaimedAt: now,
+          // Add 20 experience for farming claim
+          experience: { increment: 20 }
         }
       });
 
@@ -834,6 +863,9 @@ class DatabaseService {
         }
       });
 
+      // Update user level based on new experience
+      await this.updateUserLevel(userId);
+      
       console.log(`🌾 User ${userId} claimed ${pointsToAward} farming points`);
 
       return {
@@ -993,6 +1025,49 @@ class DatabaseService {
 
   // ==================== UTILITY METHODS ====================
   
+  // Calculate level based on experience
+  calculateLevel(experience) {
+    // Level progression: 0-99 XP = Level 1, 100-249 = Level 2, etc.
+    // Each level requires more XP than the previous
+    if (experience < 100) return 1;
+    if (experience < 250) return 2;
+    if (experience < 500) return 3;
+    if (experience < 1000) return 4;
+    if (experience < 2000) return 5;
+    if (experience < 3500) return 6;
+    if (experience < 5500) return 7;
+    if (experience < 8000) return 8;
+    if (experience < 11000) return 9;
+    if (experience < 15000) return 10;
+    
+    // After level 10, each level requires 5000 more XP
+    return Math.floor(10 + (experience - 15000) / 5000);
+  }
+
+  // Update user level based on experience
+  async updateUserLevel(userId) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { experience: true, level: true }
+      });
+      
+      if (!user) return;
+      
+      const newLevel = this.calculateLevel(user.experience);
+      if (newLevel !== user.level) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { level: newLevel }
+        });
+      }
+      
+      return newLevel;
+    } catch (error) {
+      console.error('❌ Error updating user level:', error);
+    }
+  }
+
   sanitizeUser(user) {
     if (!user) return null;
     
@@ -1003,7 +1078,10 @@ class DatabaseService {
       totalWagered: parseFloat(sanitized.totalWagered),
       totalWon: parseFloat(sanitized.totalWon),
       totalLost: parseFloat(sanitized.totalLost),
-      biggestWin: parseFloat(sanitized.biggestWin)
+      biggestWin: parseFloat(sanitized.biggestWin),
+      biggestLoss: parseFloat(sanitized.biggestLoss || 0),
+      experience: sanitized.experience || 0,
+      level: sanitized.level || 1
     };
   }
   

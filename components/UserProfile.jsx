@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import authService from './services/authService.js';
+import betHistoryService from './services/betHistoryService.js';
+import { usePlayerSettings } from './hooks/usePlayerSettings.js';
 
-const UserProfile = ({ isOpen, onClose }) => {
+const UserProfile = ({ isOpen, onClose, initialTab }) => {
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile', 'security', 'leaderboard'
+  const [activeTab, setActiveTab] = useState(initialTab || 'profile'); // 'profile', 'security', 'leaderboard', 'history', 'limits'
   const [isLoading, setIsLoading] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
   const [leaderboardType, setLeaderboardType] = useState('balance');
@@ -20,6 +22,21 @@ const UserProfile = ({ isOpen, onClose }) => {
   // Refs for throttling profile fetches
   const lastFetchRef = useRef(0);
   const inFlightRef = useRef(false);
+
+  // Session history and limits state (moved from StatsPanel)
+  const [history, setHistory] = useState([]);
+  const [dailyLimits, setDailyLimits] = useState(null);
+  const [showLimitSettings, setShowLimitSettings] = useState(false);
+
+  // Player settings hook for server sync of limits
+  const {
+    saving,
+    updateSetting,
+    dailyLimitsEnabled,
+    maxDailyWager,
+    maxDailyLoss,
+    maxGamesPerDay
+  } = usePlayerSettings();
 
   const fetchUserProfile = useCallback(async (force = false) => {
     const now = Date.now();
@@ -57,6 +74,38 @@ const UserProfile = ({ isOpen, onClose }) => {
     }
   }, [leaderboardType]);
 
+  // Load session history and limits from local storage and sync with server-backed settings
+  const loadSessionData = useCallback(() => {
+    try {
+      setHistory(betHistoryService.getRecentHistory(100));
+
+      // Sync limits from server values into local model
+      const serverLimits = {
+        enabled: dailyLimitsEnabled,
+        maxDailyWager: maxDailyWager,
+        maxDailyLoss: maxDailyLoss,
+        maxGamesPerDay: maxGamesPerDay
+      };
+      betHistoryService.updateDailyLimits(serverLimits);
+      setDailyLimits(betHistoryService.getDailyLimitsStatus());
+    } catch (err) {
+      console.error('Failed to load session data:', err);
+    }
+  }, [dailyLimitsEnabled, maxDailyWager, maxDailyLoss, maxGamesPerDay]);
+
+  // Update limits both locally and on server via the hook
+  const updateDailyLimits = useCallback((newLimits) => {
+    betHistoryService.updateDailyLimits(newLimits);
+    setDailyLimits(betHistoryService.getDailyLimitsStatus());
+
+    if (authService.isAuthenticated()) {
+      if ('enabled' in newLimits) updateSetting('dailyLimitsEnabled', newLimits.enabled);
+      if ('maxDailyWager' in newLimits) updateSetting('maxDailyWager', newLimits.maxDailyWager);
+      if ('maxDailyLoss' in newLimits) updateSetting('maxDailyLoss', newLimits.maxDailyLoss);
+      if ('maxGamesPerDay' in newLimits) updateSetting('maxGamesPerDay', newLimits.maxGamesPerDay);
+    }
+  }, [updateSetting]);
+
   useEffect(() => {
     if (!isOpen) return;
     
@@ -79,8 +128,10 @@ const UserProfile = ({ isOpen, onClose }) => {
       loadLeaderboard();
     } else if (activeTab === 'profile') {
       fetchUserProfile(); // Passive fetch (throttled)
+    } else if (activeTab === 'history' || activeTab === 'limits') {
+      loadSessionData();
     }
-  }, [activeTab, isOpen, fetchUserProfile, loadLeaderboard]);
+  }, [activeTab, isOpen, fetchUserProfile, loadLeaderboard, loadSessionData]);
 
   // Listen for balance updates and refresh profile
   useEffect(() => {
@@ -96,6 +147,16 @@ const UserProfile = ({ isOpen, onClose }) => {
       window.removeEventListener('authStateChanged', handleBalanceUpdate);
     };
   }, [isOpen, fetchUserProfile]);
+
+  // Allow external components to request a specific tab
+  useEffect(() => {
+    const handler = (e) => {
+      const tab = e?.detail?.tab;
+      if (tab) setActiveTab(tab);
+    };
+    window.addEventListener('userProfileSetTab', handler);
+    return () => window.removeEventListener('userProfileSetTab', handler);
+  }, []);
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -167,6 +228,38 @@ const UserProfile = ({ isOpen, onClose }) => {
     return n.toLocaleString() + ' pts';
   };
 
+  // Get XP required for next level
+  const getNextLevelXP = (currentLevel) => {
+    if (currentLevel < 1) return 100;
+    if (currentLevel === 1) return 100;
+    if (currentLevel === 2) return 250;
+    if (currentLevel === 3) return 500;
+    if (currentLevel === 4) return 1000;
+    if (currentLevel === 5) return 2000;
+    if (currentLevel === 6) return 3500;
+    if (currentLevel === 7) return 5500;
+    if (currentLevel === 8) return 8000;
+    if (currentLevel === 9) return 11000;
+    if (currentLevel === 10) return 15000;
+    // After level 10, each level requires 5000 more XP
+    return 15000 + ((currentLevel - 10) * 5000);
+  };
+
+  // Get XP required for current level
+  const getCurrentLevelXP = (level) => {
+    if (level <= 1) return 0;
+    return getNextLevelXP(level - 1);
+  };
+
+  // Calculate XP progress percentage
+  const getXPProgress = (experience, level) => {
+    const currentLevelXP = getCurrentLevelXP(level);
+    const nextLevelXP = getNextLevelXP(level);
+    const levelProgress = experience - currentLevelXP;
+    const levelRequirement = nextLevelXP - currentLevelXP;
+    return Math.min(100, Math.max(0, (levelProgress / levelRequirement) * 100));
+  };
+
   const getRankIcon = (index) => {
     switch (index) {
       case 0: return '🥇';
@@ -190,7 +283,7 @@ const UserProfile = ({ isOpen, onClose }) => {
             <div>
               <h2 className="text-xl font-bold text-white">{user?.username || 'Guest'}</h2>
               {user && (
-                <p className="text-sm text-gray-400">Level {user.level} • {user.role}</p>
+                <p className="text-sm text-gray-400">Level {user.level || 1} • {user.role}</p>
               )}
             </div>
           </div>
@@ -208,6 +301,8 @@ const UserProfile = ({ isOpen, onClose }) => {
         <div className="flex border-b border-gray-700">
           {[
             { id: 'profile', label: 'Profile', icon: '👤' },
+            { id: 'history', label: 'History', icon: '📋' },
+            { id: 'limits', label: 'Limits', icon: '⚠️' },
             ...(user?.telegramId ? [] : [{ id: 'security', label: 'Security', icon: '🔐' }]),
             { id: 'leaderboard', label: 'Leaderboard', icon: '🏆' }
           ].map(tab => (
@@ -254,9 +349,34 @@ const UserProfile = ({ isOpen, onClose }) => {
                   <div className="text-sm text-gray-400">Win Rate</div>
                 </div>
                 <div className="bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-purple-400">{user.level}</div>
+                  <div className="text-2xl font-bold text-purple-400">{user.level || 1}</div>
                   <div className="text-sm text-gray-400">Level</div>
                 </div>
+              </div>
+              )}
+
+              {/* Experience Progress */}
+              {user && (
+              <div className="bg-gray-800 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold">Experience Progress</h3>
+                  <span className="text-xs text-gray-400">Level {user.level || 1}</span>
+                </div>
+                <div className="mb-2">
+                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>{user.experience || 0} XP</span>
+                    <span>Next: {getNextLevelXP(user.level || 1)} XP</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${getXPProgress(user.experience || 0, user.level || 1)}%` }}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400">
+                  Earn XP by playing games, winning bets, and claiming daily rewards!
+                </p>
               </div>
               )}
 
@@ -304,7 +424,7 @@ const UserProfile = ({ isOpen, onClose }) => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Experience:</span>
-                      <span className="font-medium text-purple-400">{user.experience} XP</span>
+                      <span className="font-medium text-purple-400">{user.experience || 0} XP</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Member Since:</span>
@@ -323,7 +443,7 @@ const UserProfile = ({ isOpen, onClose }) => {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Email:</span>
-                    <span className="font-medium">{user.email}</span>
+                    <span className="font-medium">{user.email || (user.telegramId ? 'Telegram User' : 'Not provided')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Last Login:</span>
@@ -339,6 +459,190 @@ const UserProfile = ({ isOpen, onClose }) => {
                   </div>
                 </div>
               </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Recent Bets</h3>
+              </div>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {history.length > 0 ? history.map((bet) => (
+                  <div key={bet.id} className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <span className={`w-3 h-3 rounded-full ${
+                          bet.status === 'won' ? 'bg-green-500' : 
+                          bet.status === 'lost' ? 'bg-red-500' : 'bg-yellow-500'
+                        }`}></span>
+                        <div>
+                          <div className="font-medium">{formatCurrency(bet.amount)} bet</div>
+                          <div className="text-xs text-gray-400">
+                            {new Date(bet.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {bet.multiplier && (
+                          <div className="font-medium">{bet.multiplier.toFixed(2)}x</div>
+                        )}
+                        <div className={`text-sm ${
+                          bet.profit > 0 ? 'text-green-400' : 
+                          bet.profit < 0 ? 'text-red-400' : 'text-gray-400'
+                        }`}>
+                          {bet.profit > 0 ? '+' : ''}{formatCurrency(bet.profit)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="text-center text-gray-400 py-8">
+                    No betting history yet. Place your first bet to see statistics!
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'limits' && dailyLimits && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Daily Limits</h3>
+                <div className="flex items-center gap-2">
+                  {saving && <span className="text-xs text-gray-400">Saving...</span>}
+                  <button
+                    onClick={() => setShowLimitSettings(!showLimitSettings)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                  >
+                    {showLimitSettings ? 'Hide Settings' : 'Edit Limits'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Current Usage */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                  <h4 className="text-sm text-gray-400 mb-2">Daily Wagered</h4>
+                  <div className="text-xl font-bold">
+                    {formatCurrency(dailyLimits.dailyWagered)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    of {formatCurrency(dailyLimits.maxDailyWager)} limit
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
+                    <div 
+                      className="bg-blue-500 h-2 rounded-full"
+                      style={{ width: `${dailyLimits.maxDailyWager > 0 ? Math.min(100, (dailyLimits.dailyWagered / dailyLimits.maxDailyWager) * 100) : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                  <h4 className="text-sm text-gray-400 mb-2">Daily Lost</h4>
+                  <div className="text-xl font-bold text-red-400">
+                    {formatCurrency(dailyLimits.dailyLost)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    of {formatCurrency(dailyLimits.maxDailyLoss)} limit
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
+                    <div 
+                      className="bg-red-500 h-2 rounded-full"
+                      style={{ width: `${dailyLimits.maxDailyLoss > 0 ? Math.min(100, (dailyLimits.dailyLost / dailyLimits.maxDailyLoss) * 100) : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                  <h4 className="text-sm text-gray-400 mb-2">Games Played</h4>
+                  <div className="text-xl font-bold">
+                    {dailyLimits.gamesPlayedToday}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    of {dailyLimits.maxGamesPerDay} limit
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
+                    <div 
+                      className="bg-yellow-500 h-2 rounded-full"
+                      style={{ width: `${dailyLimits.maxGamesPerDay > 0 ? Math.min(100, (dailyLimits.gamesPlayedToday / dailyLimits.maxGamesPerDay) * 100) : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Limit Settings */}
+              {showLimitSettings && (
+                <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                  <h4 className="text-lg font-semibold mb-4">Responsible Gaming Settings</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Enable Daily Limits</label>
+                      <button
+                        onClick={() => updateDailyLimits({ enabled: !dailyLimits.enabled })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          dailyLimits.enabled ? 'bg-green-600' : 'bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            dailyLimits.enabled ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {dailyLimits.enabled && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            Max Daily Wager: {formatCurrency(dailyLimits.maxDailyWager)}
+                          </label>
+                          <input
+                            type="range"
+                            min="1000"
+                            max="50000"
+                            step="1000"
+                            value={dailyLimits.maxDailyWager}
+                            onChange={(e) => updateDailyLimits({ maxDailyWager: parseInt(e.target.value) })}
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            Max Daily Loss: {formatCurrency(dailyLimits.maxDailyLoss)}
+                          </label>
+                          <input
+                            type="range"
+                            min="500"
+                            max="25000"
+                            step="500"
+                            value={dailyLimits.maxDailyLoss}
+                            onChange={(e) => updateDailyLimits({ maxDailyLoss: parseInt(e.target.value) })}
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            Max Games Per Day: {dailyLimits.maxGamesPerDay}
+                          </label>
+                          <input
+                            type="range"
+                            min="10"
+                            max="500"
+                            step="10"
+                            value={dailyLimits.maxGamesPerDay}
+                            onChange={(e) => updateDailyLimits({ maxGamesPerDay: parseInt(e.target.value) })}
+                            className="w-full"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -471,7 +775,7 @@ const UserProfile = ({ isOpen, onClose }) => {
                         <span className="text-lg">{getRankIcon(index)}</span>
                         <div>
                           <div className="font-medium text-white">{player.username}</div>
-                          <div className="text-sm text-gray-400">Level {player.level}</div>
+                          <div className="text-sm text-gray-400">Level {player.level || 1}</div>
                         </div>
                       </div>
                       <div className="text-right">

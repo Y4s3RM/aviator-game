@@ -231,6 +231,18 @@ class AuthService {
     }
   }
 
+  async changePassword(oldPassword, newPassword) {
+    try {
+      const result = await this.apiRequest('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ oldPassword, newPassword })
+      });
+      return result;
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
   async safeJson(response) {
     const text = await response.text().catch(() => '');
     if (!text) return null;

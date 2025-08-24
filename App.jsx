@@ -5,7 +5,6 @@ import BetPanel from './components/BetPanel.jsx';
 import HistoryItem from './components/HistoryItem.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import BackendTest from './components/BackendTest.jsx';
-import StatsPanel from './components/StatsPanel.jsx';
 import NotificationSystem from './components/NotificationSystem.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import AdminLoginModal from './components/AdminLoginModal.jsx';
@@ -53,7 +52,6 @@ function App() {
   // Local state for UI
   const [betAmount, setBetAmount] = useState(100);
   const [showBackendTest, setShowBackendTest] = useState(false); // Default to main game now
-  const [showStatsPanel, setShowStatsPanel] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
@@ -187,17 +185,21 @@ function App() {
       setShowAdminLogin(true);
     }
     
-    // Listen for showUserProfile event from StatsPanel
-    const handleShowUserProfile = () => {
+    // Listen for openUserProfile events (optionally with desired tab)
+    const handleOpenUserProfile = (e) => {
       setShowUserProfile(true);
-      setShowStatsPanel(false); // Close stats panel when opening profile
+      setShowStatsPanel(false);
+      // Propagate desired tab via custom event on window
+      if (e?.detail?.tab) {
+        window.dispatchEvent(new CustomEvent('userProfileSetTab', { detail: { tab: e.detail.tab } }));
+      }
     };
-    window.addEventListener('showUserProfile', handleShowUserProfile);
+    window.addEventListener('openUserProfile', handleOpenUserProfile);
     
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('authStateChanged', handleAuthChange);
-      window.removeEventListener('showUserProfile', handleShowUserProfile);
+      window.removeEventListener('openUserProfile', handleOpenUserProfile);
     };
   }, [addNotification, isAuthenticated, user]);
   
@@ -436,13 +438,7 @@ function App() {
                 </div>
               }
               
-              <button 
-                onClick={() => setShowStatsPanel(true)}
-                className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-700 text-gray-300 rounded-full flex items-center justify-center hover:bg-gray-600 transition-colors"
-                title="Statistics & History"
-              >
-                <span className="text-xs sm:text-sm">📊</span>
-              </button>
+              {/* Removed Stats/Profile History shortcut button */}
 
               <button 
                 onClick={() => setShowFairnessPage(true)}
@@ -547,11 +543,7 @@ function App() {
         }}
       />
 
-      {/* Statistics Panel */}
-      <StatsPanel 
-        isOpen={showStatsPanel} 
-        onClose={() => setShowStatsPanel(false)} 
-      />
+      {/* Statistics Panel removed; use UserProfile History tab */}
 
       {/* Ranks Panel */}
       <RanksPanel
