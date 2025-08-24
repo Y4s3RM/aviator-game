@@ -53,18 +53,29 @@ const StatsPanel = ({ isOpen, onClose }) => {
   
 
 
+  // Safe number conversion
+  const safeNum = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
+
+  // Convert fraction (0-1) to percentage (0-100) if needed
+  const toPercent = (val) => {
+    const n = safeNum(val);
+    // If it's a fraction (0-1), convert to percentage
+    return n <= 1 ? n * 100 : n;
+  };
+
   const formatNumber = (num) => {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toFixed(0);
+    const n = safeNum(num);
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return n.toFixed(0);
   };
 
   const formatCurrency = (num) => {
-    return num.toFixed(0) + ' pts';
+    return safeNum(num).toFixed(0) + ' pts';
   };
 
   const formatPercentage = (num) => {
-    return num.toFixed(1) + '%';
+    return safeNum(num).toFixed(1) + '%';
   };
 
   const StatCard = ({ title, value, subtitle, color = 'text-white', icon }) => (
@@ -169,26 +180,26 @@ const StatsPanel = ({ isOpen, onClose }) => {
                 <StatCard
                   title="Total Bets"
                   value={formatNumber(stats.totalBets)}
-                  subtitle={`${stats.gamesPlayed} games played`}
+                  subtitle={`${stats.gamesPlayed} rounds played`}
                   icon="🎲"
                 />
                 <StatCard
                   title="Win Rate"
-                  value={formatPercentage(stats.winRate)}
+                  value={formatPercentage(toPercent(stats.winRate))}
                   subtitle={`${stats.currentStreak} ${stats.currentStreakType || 'game'} streak`}
-                  color={stats.winRate >= 50 ? 'text-green-400' : 'text-red-400'}
+                  color={toPercent(stats.winRate) >= 50 ? 'text-green-400' : 'text-red-400'}
                   icon="🎯"
                 />
                 <StatCard
                   title="Total Wagered"
                   value={formatCurrency(stats.totalWagered)}
-                  subtitle="All time"
+                  subtitle="This session"
                   icon="💰"
                 />
                 <StatCard
                   title="Net Profit"
                   value={formatCurrency(stats.netProfit)}
-                  subtitle={`ROI: ${formatPercentage(stats.roi)}`}
+                  subtitle={`ROI: ${formatPercentage(toPercent(stats.roi))}`}
                   color={stats.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}
                   icon={stats.netProfit >= 0 ? '📈' : '📉'}
                 />
@@ -204,13 +215,13 @@ const StatsPanel = ({ isOpen, onClose }) => {
                 />
                 <StatCard
                   title="Biggest Loss"
-                  value={formatCurrency(stats.biggestLoss)}
+                  value={formatCurrency(Math.abs(stats.biggestLoss))}
                   color="text-red-400"
                   icon="💸"
                 />
                 <StatCard
                   title="Avg Multiplier"
-                  value={stats.averageMultiplier.toFixed(2) + 'x'}
+                  value={safeNum(stats.averageMultiplier).toFixed(2) + 'x'}
                   icon="✈️"
                 />
               </div>

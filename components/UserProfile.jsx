@@ -249,6 +249,10 @@ const UserProfile = ({ isOpen, onClose }) => {
 
               {/* Detailed Stats */}
               {user && (
+              <>
+              <div className="text-xs text-gray-400 text-center mb-2">
+                Lifetime statistics from server
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-gray-800 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-4">💰 Financial Stats</h3>
@@ -283,7 +287,7 @@ const UserProfile = ({ isOpen, onClose }) => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Biggest Loss:</span>
-                      <span className="font-medium text-red-400">{formatCurrency(user.biggestLoss)}</span>
+                      <span className="font-medium text-red-400">{formatCurrency(Math.abs(Number(user.biggestLoss || 0)))}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Experience:</span>
@@ -296,6 +300,7 @@ const UserProfile = ({ isOpen, onClose }) => {
                   </div>
                 </div>
               </div>
+              </>
               )}
 
               {/* Account Info */}
