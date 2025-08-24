@@ -900,10 +900,10 @@ class DatabaseService {
           }
         });
 
-        // Pay invitee join bonus (2000 points)
+        // Pay invitee join bonus (1000 points)
         let inviteeBonusPaid = false;
         if (!invitee.referralJoinRewardClaimed) {
-          const newBalance = parseFloat(invitee.balance) + 2000;
+          const newBalance = parseFloat(invitee.balance) + 1000;
           
           await tx.user.update({
             where: { id: invitee.id },
@@ -918,7 +918,7 @@ class DatabaseService {
             data: {
               userId: invitee.id,
               type: 'BONUS',
-              amount: 2000,
+              amount: 1000,
               balanceBefore: parseFloat(invitee.balance),
               balanceAfter: newBalance,
               description: `Referral join bonus from ${referrer.username}`,
@@ -983,9 +983,9 @@ class DatabaseService {
         return { success: false, reason: 'Failed fraud checks', details: fraudChecks.reason };
       }
 
-      // Process referrer reward (4000 points)
+      // Process referrer reward (1000 points)
       const result = await prisma.$transaction(async (tx) => {
-        const referrerBonus = 4000;
+        const referrerBonus = 1000;
         const newBalance = parseFloat(referral.referrer.balance) + referrerBonus;
 
         // Update referrer balance
@@ -1028,7 +1028,7 @@ class DatabaseService {
         };
       });
 
-      console.log(`💰 Referral activation bonus paid: ${referral.referrer.username} earned 4000 pts`);
+      console.log(`💰 Referral activation bonus paid: ${referral.referrer.username} earned 1000 pts`);
       return result;
 
     } catch (error) {
@@ -1123,7 +1123,7 @@ class DatabaseService {
         totalReferrals: user.referralsAsReferrer.length,
         pendingReferrals: user.referralsAsReferrer.filter(r => r.referrerRewardStatus === 'PENDING').length,
         paidReferrals: user.referralsAsReferrer.filter(r => r.referrerRewardStatus === 'PAID').length,
-        totalEarned: user.referralsAsReferrer.filter(r => r.referrerRewardStatus === 'PAID').length * 4000,
+        totalEarned: user.referralsAsReferrer.filter(r => r.referrerRewardStatus === 'PAID').length * 1000,
         recentReferrals: user.referralsAsReferrer.slice(0, 10).map(r => ({
           username: r.invitee.username,
           joinedAt: r.createdAt,

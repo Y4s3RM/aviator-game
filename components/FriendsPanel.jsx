@@ -146,15 +146,15 @@ const FriendsPanel = ({ isOpen, onClose }) => {
                 <div className="space-y-2 text-sm text-gray-300">
                   <div className="flex items-start">
                     <span className="text-green-400 mr-2">✅</span>
-                    <span>Your friend gets <strong className="text-yellow-400">+2,000 pts</strong> when they join via your link</span>
+                    <span>Your friend gets <strong className="text-yellow-400">+1,000 pts</strong> when they join via your link</span>
                   </div>
                   <div className="flex items-start">
                     <span className="text-green-400 mr-2">✅</span>
-                    <span>You get <strong className="text-yellow-400">+4,000 pts</strong> when they play their first game</span>
+                    <span>You get <strong className="text-yellow-400">+1,000 pts</strong> when they play their first game</span>
                   </div>
                   <div className="flex items-start">
                     <span className="text-blue-400 mr-2">ℹ️</span>
-                    <span>Maximum 10 paid referrals per day (40,000 pts daily limit)</span>
+                    <span>Maximum 10 paid referrals per day (10,000 pts daily limit)</span>
                   </div>
                 </div>
               </div>
@@ -203,7 +203,7 @@ const FriendsPanel = ({ isOpen, onClose }) => {
                           ref.status === 'PAID' ? 'text-green-400' : 
                           ref.status === 'PENDING' ? 'text-yellow-400' : 'text-red-400'
                         }`}>
-                          {ref.status === 'PAID' ? '✅ +4,000' : 
+                          {ref.status === 'PAID' ? '✅ +1,000' : 
                            ref.status === 'PENDING' ? '⏳ Pending' : '❌ Rejected'}
                         </div>
                       </div>

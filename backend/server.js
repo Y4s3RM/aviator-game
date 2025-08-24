@@ -290,7 +290,7 @@ app.post('/api/auth/telegram', [
         if (referralResult.success && referralResult.inviteeBonusPaid) {
           // Update user object to reflect new balance
           user = await databaseService.findUserById(user.id);
-          referralMessage = `Welcome! You've been referred by ${referralResult.referrerUsername} and received 2,000 points!`;
+          referralMessage = `Welcome! You've been referred by ${referralResult.referrerUsername} and received 1,000 points!`;
         }
       } catch (e) {
         // Log but don't fail auth if attribution fails
