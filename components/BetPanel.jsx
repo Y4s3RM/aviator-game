@@ -364,6 +364,7 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
         disabled={isButtonDisabled()}
         haptic="impact"
         hapticStyle={gameState === 'running' ? 'heavy' : 'medium'}
+        unstyled={true}
         className={`
           w-full py-4 px-6 rounded-2xl font-black text-lg
           transition-all duration-300 transform

@@ -39,7 +39,13 @@ const WorkPanel = ({ isOpen, onClose }) => {
       
       if (result.success) {
         // Update user balance
-        setUser(authService.getUser());
+        const updatedUser = authService.getUser();
+        setUser(updatedUser);
+        
+        // Dispatch custom event to notify App.jsx of balance update
+        window.dispatchEvent(new CustomEvent('balanceUpdated', { 
+          detail: { balance: updatedUser?.balance } 
+        }));
         
         // Reload farming status from backend (single source of truth)
         await loadFarmingStatus();
@@ -105,9 +111,27 @@ const WorkPanel = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       loadFarmingStatus();
-      setUser(authService.getUser());
+      // Always get fresh user data when panel opens
+      const currentUser = authService.getUser();
+      setUser(currentUser);
     }
   }, [isOpen, loadFarmingStatus]);
+
+  // Listen for balance updates from game or other components
+  useEffect(() => {
+    const handleBalanceUpdate = (event) => {
+      const currentUser = authService.getUser();
+      setUser(currentUser);
+    };
+
+    window.addEventListener('balanceUpdated', handleBalanceUpdate);
+    window.addEventListener('authStateChanged', handleBalanceUpdate);
+
+    return () => {
+      window.removeEventListener('balanceUpdated', handleBalanceUpdate);
+      window.removeEventListener('authStateChanged', handleBalanceUpdate);
+    };
+  }, []);
 
   if (!isOpen) return null;
 

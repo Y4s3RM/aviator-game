@@ -6,10 +6,16 @@ const FairnessPage = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [verificationResults, setVerificationResults] = useState({});
   const [expandedRound, setExpandedRound] = useState(null);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
     if (isOpen) {
       loadRecentRounds();
+      // Update current time every second for countdown
+      const interval = setInterval(() => {
+        setCurrentTime(Date.now());
+      }, 1000);
+      return () => clearInterval(interval);
     }
   }, [isOpen]);
 
@@ -118,6 +124,20 @@ const FairnessPage = ({ isOpen, onClose }) => {
     return new Date(dateString).toLocaleString();
   };
 
+  const getTimeUntilReveal = (endTime) => {
+    if (!endTime) return null;
+    const endTimeMs = new Date(endTime).getTime();
+    const fiveMinutesMs = 5 * 60 * 1000;
+    const revealTime = endTimeMs + fiveMinutesMs;
+    const timeLeft = revealTime - currentTime;
+    
+    if (timeLeft <= 0) return null;
+    
+    const minutes = Math.floor(timeLeft / 60000);
+    const seconds = Math.floor((timeLeft % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -141,29 +161,38 @@ const FairnessPage = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* How it works */}
+        {/* How it works - Collapsible on mobile */}
         <div className="p-4 bg-gray-800 border-b border-gray-700">
-          <h3 className="text-lg font-semibold mb-2">How Provably Fair Works</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="bg-gray-900 p-3 rounded">
-              <div className="font-semibold text-blue-400 mb-1">1. Before the round</div>
-              <p className="text-gray-300">
-                We generate a server seed and show you its hash. The hash proves we can't change the seed later.
-              </p>
+          <details className="md:open" open>
+            <summary className="cursor-pointer md:cursor-default list-none">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">How Provably Fair Works</h3>
+                <svg className="w-5 h-5 text-gray-400 transition-transform md:hidden [details[open]>&]:rotate-180" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd"/>
+                </svg>
+              </div>
+            </summary>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mt-4">
+              <div className="bg-gray-900 p-3 rounded">
+                <div className="font-semibold text-blue-400 mb-1">1. Before the round</div>
+                <p className="text-gray-300">
+                  We generate a server seed and show you its hash. The hash proves we can't change the seed later.
+                </p>
+              </div>
+              <div className="bg-gray-900 p-3 rounded">
+                <div className="font-semibold text-blue-400 mb-1">2. During the round</div>
+                <p className="text-gray-300">
+                  The crash point is predetermined by combining server seed, client seed, and nonce.
+                </p>
+              </div>
+              <div className="bg-gray-900 p-3 rounded">
+                <div className="font-semibold text-blue-400 mb-1">3. After the round</div>
+                <p className="text-gray-300">
+                  We reveal the server seed. You can verify the hash and recalculate the crash point.
+                </p>
+              </div>
             </div>
-            <div className="bg-gray-900 p-3 rounded">
-              <div className="font-semibold text-blue-400 mb-1">2. During the round</div>
-              <p className="text-gray-300">
-                The crash point is predetermined by combining server seed, client seed, and nonce.
-              </p>
-            </div>
-            <div className="bg-gray-900 p-3 rounded">
-              <div className="font-semibold text-blue-400 mb-1">3. After the round</div>
-              <p className="text-gray-300">
-                We reveal the server seed. You can verify the hash and recalculate the crash point.
-              </p>
-            </div>
-          </div>
+          </details>
         </div>
 
         {/* Recent Rounds */}
@@ -205,23 +234,40 @@ const FairnessPage = ({ isOpen, onClose }) => {
                         
                         <div className="flex items-center space-x-2">
                           {verification && (
-                            <div className={`text-sm px-3 py-1 rounded ${
+                            <div className={`text-sm px-2 md:px-3 py-1 rounded ${
                               verification.success 
                                 ? 'bg-green-600 text-white' 
                                 : 'bg-red-600 text-white'
                             }`}>
-                              {verification.success ? '✓ Verified' : '✗ Failed'}
+                              {verification.success ? '✓' : '✗'}
+                              <span className="hidden sm:inline ml-1">
+                                {verification.success ? 'Verified' : 'Failed'}
+                              </span>
                             </div>
                           )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              verifyRound(round);
-                            }}
-                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
-                          >
-                            Verify
-                          </button>
+                          {(() => {
+                            const timeLeft = getTimeUntilReveal(round.endTime);
+                            const isDisabled = !round.serverSeed && timeLeft;
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!isDisabled) {
+                                    verifyRound(round);
+                                  }
+                                }}
+                                disabled={isDisabled}
+                                className={`px-2 md:px-3 py-1 rounded text-sm transition-colors ${
+                                  isDisabled
+                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                }`}
+                                title={isDisabled ? `Server seed reveals in ${timeLeft}` : 'Verify round'}
+                              >
+                                {isDisabled ? timeLeft : 'Verify'}
+                              </button>
+                            );
+                          })()}
                           <svg 
                             className={`w-5 h-5 text-gray-400 transition-transform ${
                               isExpanded ? 'rotate-180' : ''

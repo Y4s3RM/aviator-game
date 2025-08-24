@@ -90,6 +90,13 @@ export function useGameBackend() {
       setCashedOutMultiplier(d.cashedOutMultiplier);
       setBalance(d.balance);
       
+      // Dispatch balance update event
+      if (d.balance !== undefined) {
+        window.dispatchEvent(new CustomEvent('balanceUpdated', { 
+          detail: { balance: d.balance } 
+        }));
+      }
+      
       // Handle crashed bets (when game crashes and player had active bet but didn't cash out)
       if (gameState === 'crashed' && currentBetId && !cashedOut) {
         console.log('💥 Recording crashed bet:', currentBetId, 'at multiplier:', multiplier);

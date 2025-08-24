@@ -19,12 +19,47 @@ const UserProfile = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
+      // Get cached user initially
       setUser(authService.getUser());
+      
+      // Fetch fresh user data from backend
+      fetchUserProfile();
+      
       if (activeTab === 'leaderboard') {
         loadLeaderboard();
       }
     }
   }, [isOpen, activeTab]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const response = await authService.apiRequest('/auth/profile');
+      if (response.success && response.user) {
+        setUser(response.user);
+        // Update cached user data
+        authService.saveUser(response.user);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error);
+    }
+  };
+
+  // Listen for balance updates and refresh profile
+  useEffect(() => {
+    const handleBalanceUpdate = () => {
+      if (isOpen) {
+        fetchUserProfile();
+      }
+    };
+
+    window.addEventListener('balanceUpdated', handleBalanceUpdate);
+    window.addEventListener('authStateChanged', handleBalanceUpdate);
+
+    return () => {
+      window.removeEventListener('balanceUpdated', handleBalanceUpdate);
+      window.removeEventListener('authStateChanged', handleBalanceUpdate);
+    };
+  }, [isOpen]);
 
   const loadLeaderboard = async () => {
     try {

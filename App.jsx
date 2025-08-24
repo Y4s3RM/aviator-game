@@ -187,9 +187,17 @@ function App() {
       setShowAdminLogin(true);
     }
     
+    // Listen for showUserProfile event from StatsPanel
+    const handleShowUserProfile = () => {
+      setShowUserProfile(true);
+      setShowStatsPanel(false); // Close stats panel when opening profile
+    };
+    window.addEventListener('showUserProfile', handleShowUserProfile);
+    
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('authStateChanged', handleAuthChange);
+      window.removeEventListener('showUserProfile', handleShowUserProfile);
     };
   }, [addNotification, isAuthenticated, user]);
   

@@ -144,6 +144,26 @@ const StatsPanel = ({ isOpen, onClose }) => {
         <div className="p-4 overflow-y-auto max-h-[60vh]">
           {activeTab === 'overview' && stats && (
             <div className="space-y-6">
+              {/* Local Stats Notice */}
+              <div className="bg-blue-900 bg-opacity-30 border border-blue-700 rounded-lg p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-blue-400">ℹ️</span>
+                    <span className="text-gray-300">
+                      These statistics are based on your current session. 
+                      View your profile for lifetime stats.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      window.dispatchEvent(new Event('showUserProfile'));
+                    }}
+                    className="text-blue-400 hover:text-blue-300 text-xs underline"
+                  >
+                    View Profile
+                  </button>
+                </div>
+              </div>
               {/* Key Metrics */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard
