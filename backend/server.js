@@ -157,9 +157,17 @@ const settingsWriteLimiter = rateLimit({
 // Profile read limiter - more generous than auth limiter
 const profileReadLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 60, // 1 request per second
+  max: 60, // 1 request per second per user
   skip: (req) => req.method === 'OPTIONS',
   validate: false,
+  keyGenerator: (req) => {
+    // Use user ID if available, fallback to IP
+    try { 
+      return req.user?.id || req.ip; 
+    } catch { 
+      return req.ip; 
+    }
+  },
   handler: (req, res) => {
     res.status(429).json({
       error: 'Too many requests, please try again later.',
@@ -176,12 +184,13 @@ app.use('/api/auth/refresh', authLimiter);
 app.use('/api/admin/login', authLimiter);
 app.use('/api/admin/register', authLimiter);
 
-// Exclude health, game-state, and player settings from global rate limiting
+// Exclude health, game-state, player settings, and profile from global rate limiting
 app.use('/api/', (req, res, next) => {
   if (
     req.path === '/health' || 
     req.path === '/game-state' ||
-    req.path.startsWith('/player/settings')
+    req.path.startsWith('/player/settings') ||
+    req.path === '/auth/profile'
   ) {
     return next();
   }

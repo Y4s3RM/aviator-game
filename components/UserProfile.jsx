@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import authService from './services/authService.js';
 
 const UserProfile = ({ isOpen, onClose }) => {
@@ -17,25 +17,45 @@ const UserProfile = ({ isOpen, onClose }) => {
   const [passwordErrors, setPasswordErrors] = useState({});
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      // Get cached user initially
-      setUser(authService.getUser());
-      
-      // Debounce profile fetch to avoid rapid requests
-      const fetchTimer = setTimeout(() => {
-        fetchUserProfile();
-      }, 100);
-      
-      if (activeTab === 'leaderboard') {
-        loadLeaderboard();
-      }
-      
-      return () => clearTimeout(fetchTimer);
-    }
-  }, [isOpen, activeTab]);
+  // Refs for throttling profile fetches
+  const lastFetchRef = useRef(0);
+  const inFlightRef = useRef(false);
 
-  const fetchUserProfile = async () => {
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    // Get cached user initially
+    setUser(authService.getUser());
+    
+    // One initial fetch when opening (forced)
+    const fetchTimer = setTimeout(() => {
+      fetchUserProfile(true);
+    }, 100);
+    
+    return () => clearTimeout(fetchTimer);
+  }, [isOpen, fetchUserProfile]);
+
+  // Handle tab changes
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    if (activeTab === 'leaderboard') {
+      loadLeaderboard();
+    } else if (activeTab === 'profile') {
+      fetchUserProfile(); // Passive fetch (throttled)
+    }
+  }, [activeTab, isOpen, fetchUserProfile, loadLeaderboard]);
+
+  const fetchUserProfile = useCallback(async (force = false) => {
+    const now = Date.now();
+    const MIN_INTERVAL = 3000; // 3s between calls
+
+    if (!force) {
+      if (inFlightRef.current) return; // Request already in flight
+      if (now - lastFetchRef.current < MIN_INTERVAL) return; // Too soon
+    }
+
+    inFlightRef.current = true;
     try {
       const response = await authService.apiRequest('/auth/profile');
       if (response.success && response.user) {
@@ -45,25 +65,18 @@ const UserProfile = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
+    } finally {
+      lastFetchRef.current = Date.now();
+      inFlightRef.current = false;
     }
-  };
+  }, []);
 
   // Listen for balance updates and refresh profile
   useEffect(() => {
-    let lastFetchTime = 0;
-    const minFetchInterval = 1000; // Minimum 1 second between fetches
+    if (!isOpen) return;
     
-    const handleBalanceUpdate = () => {
-      if (isOpen) {
-        const now = Date.now();
-        // Throttle fetches to prevent rate limiting
-        if (now - lastFetchTime >= minFetchInterval) {
-          lastFetchTime = now;
-          fetchUserProfile();
-        }
-      }
-    };
-
+    const handleBalanceUpdate = () => fetchUserProfile(); // Already throttled
+    
     window.addEventListener('balanceUpdated', handleBalanceUpdate);
     window.addEventListener('authStateChanged', handleBalanceUpdate);
 
@@ -71,9 +84,9 @@ const UserProfile = ({ isOpen, onClose }) => {
       window.removeEventListener('balanceUpdated', handleBalanceUpdate);
       window.removeEventListener('authStateChanged', handleBalanceUpdate);
     };
-  }, [isOpen]);
+  }, [isOpen, fetchUserProfile]);
 
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = useCallback(async () => {
     try {
       const result = await authService.getLeaderboard(leaderboardType, 10);
       if (result.success) {
@@ -82,7 +95,7 @@ const UserProfile = ({ isOpen, onClose }) => {
     } catch (error) {
       console.error('Failed to load leaderboard:', error);
     }
-  };
+  }, [leaderboardType]);
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
