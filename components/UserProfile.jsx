@@ -21,31 +21,6 @@ const UserProfile = ({ isOpen, onClose }) => {
   const lastFetchRef = useRef(0);
   const inFlightRef = useRef(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    
-    // Get cached user initially
-    setUser(authService.getUser());
-    
-    // One initial fetch when opening (forced)
-    const fetchTimer = setTimeout(() => {
-      fetchUserProfile(true);
-    }, 100);
-    
-    return () => clearTimeout(fetchTimer);
-  }, [isOpen, fetchUserProfile]);
-
-  // Handle tab changes
-  useEffect(() => {
-    if (!isOpen) return;
-    
-    if (activeTab === 'leaderboard') {
-      loadLeaderboard();
-    } else if (activeTab === 'profile') {
-      fetchUserProfile(); // Passive fetch (throttled)
-    }
-  }, [activeTab, isOpen, fetchUserProfile, loadLeaderboard]);
-
   const fetchUserProfile = useCallback(async (force = false) => {
     const now = Date.now();
     const MIN_INTERVAL = 3000; // 3s between calls
@@ -71,6 +46,42 @@ const UserProfile = ({ isOpen, onClose }) => {
     }
   }, []);
 
+  const loadLeaderboard = useCallback(async () => {
+    try {
+      const result = await authService.getLeaderboard(leaderboardType, 10);
+      if (result.success) {
+        setLeaderboard(result.leaderboard);
+      }
+    } catch (error) {
+      console.error('Failed to load leaderboard:', error);
+    }
+  }, [leaderboardType]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    // Get cached user initially
+    setUser(authService.getUser());
+    
+    // One initial fetch when opening (forced)
+    const fetchTimer = setTimeout(() => {
+      fetchUserProfile(true);
+    }, 100);
+    
+    return () => clearTimeout(fetchTimer);
+  }, [isOpen, fetchUserProfile]);
+
+  // Handle tab changes
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    if (activeTab === 'leaderboard') {
+      loadLeaderboard();
+    } else if (activeTab === 'profile') {
+      fetchUserProfile(); // Passive fetch (throttled)
+    }
+  }, [activeTab, isOpen, fetchUserProfile, loadLeaderboard]);
+
   // Listen for balance updates and refresh profile
   useEffect(() => {
     if (!isOpen) return;
@@ -85,17 +96,6 @@ const UserProfile = ({ isOpen, onClose }) => {
       window.removeEventListener('authStateChanged', handleBalanceUpdate);
     };
   }, [isOpen, fetchUserProfile]);
-
-  const loadLeaderboard = useCallback(async () => {
-    try {
-      const result = await authService.getLeaderboard(leaderboardType, 10);
-      if (result.success) {
-        setLeaderboard(result.leaderboard);
-      }
-    } catch (error) {
-      console.error('Failed to load leaderboard:', error);
-    }
-  }, [leaderboardType]);
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
