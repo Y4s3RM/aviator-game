@@ -13,6 +13,8 @@ const WorkPanel = ({ isOpen, onClose }) => {
   const [isClaiming, setIsClaiming] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState('');
   const [user, setUser] = useState(authService.getUser());
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const loadFarmingStatus = useCallback(async () => {
     try {
@@ -31,6 +33,7 @@ const WorkPanel = ({ isOpen, onClose }) => {
     if (!farmingStatus.canClaim || isClaiming) return;
 
     setIsClaiming(true);
+    setError('');
     try {
       const result = await authService.claimFarmingPoints();
       
@@ -38,24 +41,31 @@ const WorkPanel = ({ isOpen, onClose }) => {
         // Update user balance
         setUser(authService.getUser());
         
-        // Update farming status
-        setFarmingStatus({
-          canClaim: false,
-          lastClaimedAt: result.lastClaimedAt,
-          nextClaimTime: result.nextClaimTime,
-          hoursElapsed: 0,
-          pointsAvailable: 0
-        });
+        // Reload farming status from backend (single source of truth)
+        await loadFarmingStatus();
+
+        // Show success message
+        const points = farmingStatus.rewardPoints || 6000;
+        setSuccess(`Successfully claimed ${points.toLocaleString()} points!`);
+        setTimeout(() => setSuccess(''), 3000);
 
         // Show success animation
         if (window.Telegram?.WebApp?.HapticFeedback) {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
         }
       } else {
-        console.error('Failed to claim:', result.error);
+        // Show user-facing error message
+        setError(result.error || 'Failed to claim points. Please try again.');
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+        }
       }
     } catch (error) {
       console.error('Claim error:', error);
+      setError(error.message === 'Network error' ? 'Network error. Please check your connection.' : 'Failed to claim points. Please try again.');
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+      }
     } finally {
       setIsClaiming(false);
     }
@@ -101,7 +111,8 @@ const WorkPanel = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const progressPercentage = Math.min((farmingStatus.hoursElapsed / 6) * 100, 100);
+  const cycleHours = farmingStatus.cycleHours || 6;
+  const progressPercentage = Math.min((farmingStatus.hoursElapsed / cycleHours) * 100, 100);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -129,12 +140,24 @@ const WorkPanel = ({ isOpen, onClose }) => {
             </div>
           </div>
 
+          {/* Error/Success Messages */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-900 bg-opacity-30 border border-red-700 rounded-lg text-red-400 text-sm">
+              ⚠️ {error}
+            </div>
+          )}
+          {success && (
+            <div className="mb-4 p-3 bg-green-900 bg-opacity-30 border border-green-700 rounded-lg text-green-400 text-sm">
+              ✅ {success}
+            </div>
+          )}
+
           {/* Farming Card */}
           <div className="bg-gray-800 rounded-xl p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">🌾 Points Farming</h3>
               <div className="text-yellow-400 font-bold">
-                +6,000 pts
+                +{(farmingStatus.rewardPoints || 6000).toLocaleString()} pts
               </div>
             </div>
 
@@ -156,7 +179,7 @@ const WorkPanel = ({ isOpen, onClose }) => {
             <div className="text-center mb-4">
               {farmingStatus.canClaim ? (
                 <div className="text-green-400 font-semibold text-lg">
-                  Ready to claim 6,000 points!
+                  Ready to claim {(farmingStatus.rewardPoints || 6000).toLocaleString()} points!
                 </div>
               ) : (
                 <div>
@@ -187,7 +210,7 @@ const WorkPanel = ({ isOpen, onClose }) => {
                   Claiming...
                 </span>
               ) : farmingStatus.canClaim ? (
-                'Claim 6,000 Points'
+                `Claim ${(farmingStatus.rewardPoints || 6000).toLocaleString()} Points`
               ) : (
                 'Farming in Progress'
               )}
@@ -198,7 +221,7 @@ const WorkPanel = ({ isOpen, onClose }) => {
           <div className="bg-blue-900 bg-opacity-30 border border-blue-700 rounded-lg p-4">
             <h4 className="text-blue-400 font-semibold mb-2">How it works:</h4>
             <ul className="text-sm text-gray-300 space-y-1">
-              <li>• Earn 6,000 points every 6 hours</li>
+              <li>• Earn {(farmingStatus.rewardPoints || 6000).toLocaleString()} points every {farmingStatus.cycleHours || 6} hours</li>
               <li>• Must claim to start next cycle</li>
               <li>• Points don't accumulate if not claimed</li>
               <li>• Check back regularly to maximize earnings!</li>

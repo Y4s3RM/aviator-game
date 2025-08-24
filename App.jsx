@@ -133,8 +133,8 @@ function App() {
 
     initializeAuth();
 
-    // Poll for auth changes (for Telegram authentication)
-    const authCheckInterval = setInterval(() => {
+    // Listen for auth changes via storage events
+    const handleAuthChange = () => {
       const isAuth = authService.isAuthenticated();
       const currentUser = authService.getUser();
       
@@ -167,7 +167,19 @@ function App() {
         setUser(currentUser);
         loadPlayerSettings();
       }
-    }, 1000); // Check every second
+    };
+    
+    // Listen for storage changes (cross-tab)
+    const handleStorageChange = (e) => {
+      if (e.key === 'token' || e.key === 'user') {
+        handleAuthChange();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Listen for auth changes in same tab
+    window.addEventListener('authStateChanged', handleAuthChange);
 
     // If URL has ?admin=1 and not already authenticated as admin, open admin login
     const params = new URLSearchParams(window.location.search);
@@ -175,7 +187,10 @@ function App() {
       setShowAdminLogin(true);
     }
     
-    return () => clearInterval(authCheckInterval);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('authStateChanged', handleAuthChange);
+    };
   }, [addNotification, isAuthenticated, user]);
   
   // Load player settings when authenticated
@@ -215,7 +230,7 @@ function App() {
       }
     };
     
-    const debounceTimer = setTimeout(saveSettings, 500);
+    const debounceTimer = setTimeout(saveSettings, 1500);
     return () => clearTimeout(debounceTimer);
   }, [soundEnabled, isAuthenticated, settingsLoaded]);
 

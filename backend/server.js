@@ -158,9 +158,13 @@ const settingsWriteLimiter = rateLimit({
 // Note: We'll apply these directly on the routes instead of globally
 app.use('/api/auth/', authLimiter);
 
-// Exclude health and game-state endpoints from rate limiting
+// Exclude health, game-state, and player settings from global rate limiting
 app.use('/api/', (req, res, next) => {
-  if (req.path === '/health' || req.path === '/game-state') {
+  if (
+    req.path === '/health' || 
+    req.path === '/game-state' ||
+    req.path.startsWith('/player/settings')
+  ) {
     return next();
   }
   limiter(req, res, next);
@@ -588,13 +592,18 @@ app.get('/api/farming/status',
 
       const now = new Date();
       const lastClaimed = user.lastClaimedAt ? new Date(user.lastClaimedAt) : null;
+      
+      // Configuration values
+      const cycleHours = 6;
+      const rewardPoints = 6000;
+      
       const hoursElapsed = lastClaimed 
         ? (now - lastClaimed) / (1000 * 60 * 60) 
-        : 6; // If never claimed, allow first claim
+        : cycleHours; // If never claimed, allow first claim
       
-      const canClaim = hoursElapsed >= 6;
+      const canClaim = hoursElapsed >= cycleHours;
       const nextClaimTime = lastClaimed 
-        ? new Date(lastClaimed.getTime() + 6 * 60 * 60 * 1000)
+        ? new Date(lastClaimed.getTime() + cycleHours * 60 * 60 * 1000)
         : now;
 
       res.json({
@@ -602,8 +611,10 @@ app.get('/api/farming/status',
         canClaim,
         lastClaimedAt: lastClaimed,
         nextClaimTime: canClaim ? now : nextClaimTime,
-        hoursElapsed: Math.min(hoursElapsed, 6), // Cap at 6 hours
-        pointsAvailable: canClaim ? 6000 : 0
+        hoursElapsed: Math.min(hoursElapsed, cycleHours), // Cap at cycleHours
+        pointsAvailable: canClaim ? rewardPoints : 0,
+        cycleHours,
+        rewardPoints
       });
     } catch (error) {
       console.error('❌ Farming status error:', error);
@@ -788,7 +799,23 @@ function startGameLoop() {
 // =============================================================================
 // WebSocket handling - Railway-compatible with heartbeat
 // =============================================================================
-const wss = new WebSocket.Server({ noServer: true });
+// WebSocket server with proper subprotocol handling
+const wss = new WebSocket.Server({ 
+  noServer: true,
+  handleProtocols: (protocols, request) => {
+    // Check for access_token subprotocol
+    if (protocols.includes('access_token')) {
+      return 'access_token';
+    }
+    // Check for bearer token in protocols
+    const bearerProtocol = protocols.find(p => p.startsWith('bearer.'));
+    if (bearerProtocol) {
+      return bearerProtocol;
+    }
+    // Default: no subprotocol
+    return false;
+  }
+});
 
 function heartbeat() { 
   this.isAlive = true; 
@@ -1008,7 +1035,7 @@ server.on('upgrade', (req, socket, head) => {
   
   wss.handleUpgrade(req, socket, head, (ws) => {
     wss.emit('connection', ws, req);
-  }, acceptedProtocol);
+  });
 });
 
 // =============================================================================

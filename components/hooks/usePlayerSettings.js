@@ -110,7 +110,7 @@ export function usePlayerSettings() {
     clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       flush();
-    }, 600); // 600ms debounce
+    }, 2000); // 2000ms debounce to reduce 429 errors
   }, [flush]);
 
   // Update a single setting
