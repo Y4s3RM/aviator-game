@@ -7,18 +7,28 @@ class AuthService {
     this.user = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
   }
 
-  async authenticateWithTelegram(telegramUser) {
+  async authenticateWithTelegram(telegramUser, startParam = null) {
     try {
+      // Create device ID for referral tracking
+      let deviceId = localStorage.getItem('device_id');
+      if (!deviceId) {
+        deviceId = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem('device_id', deviceId);
+      }
+
       const res = await fetch(`${this.baseURL}/auth/telegram`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegramUser })
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Device-Id': deviceId
+        },
+        body: JSON.stringify({ telegramUser, startParam })
       });
       const data = await this.safeJson(res);
       if (res.ok && data?.success) {
         this.applySession(data.token, data.refreshToken, data.user);
         window.dispatchEvent(new Event('authStateChanged'));
-        return { success: true, user: this.user };
+        return { success: true, user: this.user, referralMessage: data.referralMessage };
       }
       return { success: false, error: data?.error || `HTTP ${res.status}` };
     } catch (e) {
@@ -189,6 +199,14 @@ class AuthService {
   async getLeaderboard(type = 'balance', limit = 10) {
     const params = new URLSearchParams({ type, limit });
     return await this.apiRequest(`/leaderboard?${params.toString()}`);
+  }
+
+  async getReferralStats() {
+    try {
+      return await this.apiRequest('/referrals/stats');
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   }
 
   async getPlayerSettings() {

@@ -39,6 +39,12 @@ model User {
   experience        Int      @default(0)
   level             Int      @default(1)
   
+  // Referral system
+  referralCode      String?  @unique
+  referredBy        String?  // Referral code used to join
+  referredByUserId  String?  // User ID of referrer
+  referralJoinRewardClaimed Boolean @default(false)
+  
   // Farming system
   lastClaimedAt     DateTime?  // Last time user claimed farming points
   
@@ -53,6 +59,10 @@ model User {
   sessions          Session[]
   dailyLimits       DailyLimit[]
   playerSettings    PlayerSettings?
+  referredByUser    User?     @relation("ReferralRelation", fields: [referredByUserId], references: [id])
+  referredUsers     User[]    @relation("ReferralRelation")
+  referralsAsReferrer Referral[] @relation("ReferrerRelation")
+  referralAsInvitee   Referral? @relation("InviteeRelation")
   
   @@map("users")
 }
@@ -243,8 +253,42 @@ enum TransactionType {
   FARMING_CLAIM
 }
 
+// Referral tracking
+model Referral {
+  id                   String   @id @default(cuid())
+  referrerUserId       String
+  inviteeUserId        String   @unique // Each user can only be referred once
+  referralCode         String
+  
+  // Tracking info
+  ip                   String?
+  deviceId             String?
+  
+  // Timestamps
+  createdAt            DateTime @default(now())
+  activationEventAt    DateTime?
+  
+  // Reward status
+  referrerRewardStatus ReferralStatus @default(PENDING)
+  inviteeRewardPaid    Boolean @default(false)
+  notes                String?
+  
+  // Relations
+  referrer             User     @relation("ReferrerRelation", fields: [referrerUserId], references: [id])
+  invitee              User     @relation("InviteeRelation", fields: [inviteeUserId], references: [id])
+  
+  @@map("referrals")
+}
+
 enum UserRole {
   PLAYER      // Regular player (Telegram users)
   ADMIN       // Admin user (email/password)
   MODERATOR   // Moderator (if needed later)
+}
+
+enum ReferralStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
 }

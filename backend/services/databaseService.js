@@ -24,6 +24,17 @@ class DatabaseService {
         passwordHash = await bcrypt.hash(password, 12);
       }
       
+      // Generate unique referral code
+      let referralCode;
+      let codeExists = true;
+      while (codeExists) {
+        referralCode = this.generateReferralCode();
+        const existing = await prisma.user.findUnique({
+          where: { referralCode }
+        });
+        codeExists = !!existing;
+      }
+
       const user = await prisma.user.create({
         data: {
           telegramId: telegramId?.toString(),
@@ -33,6 +44,7 @@ class DatabaseService {
           lastName,
           avatar,
           passwordHash,
+          referralCode,
           role: role || 'PLAYER', // Default to PLAYER if no role specified
           balance: process.env.DEFAULT_BALANCE || 1000,
           isVerified: !!telegramId, // Auto-verify Telegram users
@@ -372,11 +384,32 @@ class DatabaseService {
         // Update daily limits
         await this.updateDailyLimits(userId, amount, 0, 1, tx);
         
-        return bet;
+        // Check if this is user's first bet for referral activation
+        const betCount = await tx.bet.count({
+          where: { userId }
+        });
+        
+        // Store for after transaction
+        const isFirstBet = betCount === 1;
+        
+        return { bet, isFirstBet };
       });
       
-      console.log(`🎯 Bet placed: ${userId} - ${amount} (${result.id})`);
-      return result;
+      // Handle referral activation after successful transaction
+      if (result.isFirstBet) {
+        try {
+          const activationResult = await this.markReferralActivated(userId);
+          if (activationResult.success && activationResult.paid) {
+            console.log(`🎉 Referral activated for user ${userId} - referrer received bonus`);
+          }
+        } catch (error) {
+          // Don't fail the bet if referral activation fails
+          console.error('Referral activation error (non-fatal):', error);
+        }
+      }
+      
+      console.log(`🎯 Bet placed: ${userId} - ${amount} (${result.bet.id})`);
+      return result.bet;
     } catch (error) {
       console.error('❌ Error placing bet:', error);
       throw error;
@@ -804,6 +837,308 @@ class DatabaseService {
     }
   }
 
+  // ==================== REFERRAL SYSTEM ====================
+  
+  async attributeReferral({ inviteeUserId, referralCode, ip, deviceId }) {
+    try {
+      const invitee = await prisma.user.findUnique({
+        where: { id: inviteeUserId }
+      });
+
+      if (!invitee) {
+        throw new Error('Invitee user not found');
+      }
+
+      // Check if already attributed
+      if (invitee.referredByUserId) {
+        return { success: true, alreadyAttributed: true };
+      }
+
+      // Find referrer by code (case-insensitive)
+      const referrer = await prisma.user.findFirst({
+        where: { 
+          referralCode: {
+            equals: referralCode,
+            mode: 'insensitive'
+          }
+        }
+      });
+
+      if (!referrer) {
+        throw new Error('Invalid referral code');
+      }
+
+      // Prevent self-referral
+      if (referrer.id === invitee.id) {
+        throw new Error('Self-referral not allowed');
+      }
+
+      // Also check if same Telegram ID (different accounts, same person)
+      if (invitee.telegramId && referrer.telegramId && invitee.telegramId === referrer.telegramId) {
+        throw new Error('Cannot refer yourself');
+      }
+
+      // Start transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Create referral record
+        await tx.referral.create({
+          data: {
+            referrerUserId: referrer.id,
+            inviteeUserId: invitee.id,
+            referralCode,
+            ip,
+            deviceId
+          }
+        });
+
+        // Update invitee with referrer info
+        await tx.user.update({
+          where: { id: invitee.id },
+          data: {
+            referredBy: referralCode,
+            referredByUserId: referrer.id
+          }
+        });
+
+        // Pay invitee join bonus (2000 points)
+        let inviteeBonusPaid = false;
+        if (!invitee.referralJoinRewardClaimed) {
+          const newBalance = parseFloat(invitee.balance) + 2000;
+          
+          await tx.user.update({
+            where: { id: invitee.id },
+            data: {
+              balance: newBalance,
+              referralJoinRewardClaimed: true
+            }
+          });
+
+          // Record transaction
+          await tx.transaction.create({
+            data: {
+              userId: invitee.id,
+              type: 'BONUS',
+              amount: 2000,
+              balanceBefore: parseFloat(invitee.balance),
+              balanceAfter: newBalance,
+              description: `Referral join bonus from ${referrer.username}`,
+              metadata: {
+                type: 'referral_join_bonus',
+                referrerId: referrer.id,
+                referralCode
+              }
+            }
+          });
+
+          inviteeBonusPaid = true;
+        }
+
+        return { 
+          success: true, 
+          inviteeBonusPaid, 
+          referrerId: referrer.id,
+          referrerUsername: referrer.username 
+        };
+      });
+
+      console.log(`✅ Referral attributed: ${invitee.username} referred by ${referrer.username}`);
+      return result;
+
+    } catch (error) {
+      console.error('❌ Error attributing referral:', error);
+      throw error;
+    }
+  }
+
+  async markReferralActivated(inviteeUserId) {
+    try {
+      // Find the referral record
+      const referral = await prisma.referral.findUnique({
+        where: { inviteeUserId },
+        include: {
+          referrer: true,
+          invitee: true
+        }
+      });
+
+      if (!referral) {
+        return { success: false, reason: 'No referral found' };
+      }
+
+      if (referral.referrerRewardStatus !== 'PENDING') {
+        return { success: false, reason: 'Referral already processed' };
+      }
+
+      // Basic fraud checks
+      const fraudChecks = await this.performReferralFraudChecks(referral);
+      if (!fraudChecks.passed) {
+        await prisma.referral.update({
+          where: { id: referral.id },
+          data: {
+            referrerRewardStatus: 'REJECTED',
+            activationEventAt: new Date(),
+            notes: fraudChecks.reason
+          }
+        });
+        return { success: false, reason: 'Failed fraud checks', details: fraudChecks.reason };
+      }
+
+      // Process referrer reward (4000 points)
+      const result = await prisma.$transaction(async (tx) => {
+        const referrerBonus = 4000;
+        const newBalance = parseFloat(referral.referrer.balance) + referrerBonus;
+
+        // Update referrer balance
+        await tx.user.update({
+          where: { id: referral.referrerUserId },
+          data: { balance: newBalance }
+        });
+
+        // Update referral record
+        await tx.referral.update({
+          where: { id: referral.id },
+          data: {
+            referrerRewardStatus: 'PAID',
+            activationEventAt: new Date()
+          }
+        });
+
+        // Record transaction
+        await tx.transaction.create({
+          data: {
+            userId: referral.referrerUserId,
+            type: 'BONUS',
+            amount: referrerBonus,
+            balanceBefore: parseFloat(referral.referrer.balance),
+            balanceAfter: newBalance,
+            description: `Referral activation bonus for ${referral.invitee.username}`,
+            metadata: {
+              type: 'referral_activation_bonus',
+              inviteeId: inviteeUserId,
+              referralId: referral.id
+            }
+          }
+        });
+
+        return { 
+          success: true, 
+          paid: true, 
+          amount: referrerBonus,
+          referrerId: referral.referrerUserId 
+        };
+      });
+
+      console.log(`💰 Referral activation bonus paid: ${referral.referrer.username} earned 4000 pts`);
+      return result;
+
+    } catch (error) {
+      console.error('❌ Error marking referral activated:', error);
+      throw error;
+    }
+  }
+
+  async performReferralFraudChecks(referral) {
+    // Basic fraud detection
+    try {
+      // Check 1: Account age (invitee should be relatively new)
+      const inviteeAge = Date.now() - new Date(referral.invitee.createdAt).getTime();
+      const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+      if (inviteeAge > maxAge) {
+        return { passed: false, reason: 'Invitee account too old' };
+      }
+
+      // Check 2: Same IP check (if we have IPs)
+      if (referral.ip) {
+        const sameIpReferrals = await prisma.referral.count({
+          where: {
+            referrerUserId: referral.referrerUserId,
+            ip: referral.ip,
+            createdAt: {
+              gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+            }
+          }
+        });
+        if (sameIpReferrals > 2) {
+          return { passed: false, reason: 'Too many referrals from same IP' };
+        }
+      }
+
+      // Check 3: Daily referral limit
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const paidReferralsToday = await prisma.referral.count({
+        where: {
+          referrerUserId: referral.referrerUserId,
+          referrerRewardStatus: 'PAID',
+          activationEventAt: {
+            gte: today
+          }
+        }
+      });
+      if (paidReferralsToday >= 10) {
+        return { passed: false, reason: 'Daily referral limit reached' };
+      }
+
+      return { passed: true };
+    } catch (error) {
+      console.error('❌ Error in fraud checks:', error);
+      // Be conservative - reject on error
+      return { passed: false, reason: 'Fraud check error' };
+    }
+  }
+
+  async getReferralStats(userId) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          referralsAsReferrer: {
+            include: {
+              invitee: {
+                select: {
+                  username: true,
+                  createdAt: true
+                }
+              }
+            },
+            orderBy: {
+              createdAt: 'desc'
+            }
+          },
+          referredByUser: {
+            select: {
+              username: true
+            }
+          }
+        }
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      const stats = {
+        referralCode: user.referralCode,
+        referredBy: user.referredByUser?.username || null,
+        totalReferrals: user.referralsAsReferrer.length,
+        pendingReferrals: user.referralsAsReferrer.filter(r => r.referrerRewardStatus === 'PENDING').length,
+        paidReferrals: user.referralsAsReferrer.filter(r => r.referrerRewardStatus === 'PAID').length,
+        totalEarned: user.referralsAsReferrer.filter(r => r.referrerRewardStatus === 'PAID').length * 4000,
+        recentReferrals: user.referralsAsReferrer.slice(0, 10).map(r => ({
+          username: r.invitee.username,
+          joinedAt: r.createdAt,
+          status: r.referrerRewardStatus,
+          activatedAt: r.activationEventAt
+        }))
+      };
+
+      return stats;
+    } catch (error) {
+      console.error('❌ Error getting referral stats:', error);
+      return null;
+    }
+  }
+
   // ==================== FARMING SYSTEM ====================
   
   async claimFarmingPoints(userId) {
@@ -1024,6 +1359,17 @@ class DatabaseService {
   }
 
   // ==================== UTILITY METHODS ====================
+  
+  // Generate a unique referral code
+  generateReferralCode() {
+    // Format: AV8R-XXXXX (where X is alphanumeric)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 5; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `AV8R-${code}`;
+  }
   
   // Calculate level based on experience
   calculateLevel(experience) {

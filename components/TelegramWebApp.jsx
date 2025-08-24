@@ -11,15 +11,23 @@ const TelegramWebApp = ({ children }) => {
   const [authError, setAuthError] = useState(null);
 
   // Authenticate user with backend
-  const authenticateUser = async (telegramUser) => {
+  const authenticateUser = async (telegramUser, startParam) => {
     try {
       console.log('🔐 Authenticating Telegram user:', telegramUser);
-      const result = await authService.authenticateWithTelegram(telegramUser);
+      if (startParam) {
+        console.log('📨 Start param:', startParam);
+      }
+      const result = await authService.authenticateWithTelegram(telegramUser, startParam);
       
       if (result.success) {
         setIsAuthenticated(true);
         setAuthError(null);
         console.log('✅ Authentication successful');
+        
+        // Show referral message if present
+        if (result.referralMessage) {
+          window.Telegram?.WebApp?.showAlert(result.referralMessage);
+        }
       } else {
         setIsAuthenticated(false);
         setAuthError(result.error);
@@ -45,10 +53,11 @@ const TelegramWebApp = ({ children }) => {
       // Get user data and authenticate
       if (webApp.initDataUnsafe?.user) {
         const telegramUser = webApp.initDataUnsafe.user;
+        const startParam = webApp.initDataUnsafe?.start_param || null;
         setUser(telegramUser);
         
         // Automatically authenticate with backend
-        authenticateUser(telegramUser);
+        authenticateUser(telegramUser, startParam);
       }
 
       // Get theme parameters

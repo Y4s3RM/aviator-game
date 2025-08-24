@@ -12,6 +12,7 @@ import UserProfile from './components/UserProfile.jsx';
 import RanksPanel from './components/RanksPanel.jsx';
 import FairnessPage from './components/FairnessPage.jsx';
 import WorkPanel from './components/WorkPanel.jsx';
+import FriendsPanel from './components/FriendsPanel.jsx';
 import { useGameBackend } from './components/hooks/useGameBackend.js';
 import soundEffects from './components/utils/soundEffects.js';
 import authService from './components/services/authService.js';
@@ -59,6 +60,7 @@ function App() {
   const [activeNavTab, setActiveNavTab] = useState('Play');
   const [showFairnessPage, setShowFairnessPage] = useState(false);
   const [showWorkPanel, setShowWorkPanel] = useState(false);
+  const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [prevGameState, setPrevGameState] = useState(gameState);
   const [prevCountdown, setPrevCountdown] = useState(countdown);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -550,6 +552,8 @@ function App() {
             setShowRanksPanel(true);
           } else if (tab === 'Work') {
             setShowWorkPanel(true);
+          } else if (tab === 'Friends') {
+            setShowFriendsPanel(true);
           }
         }}
       />
@@ -576,6 +580,15 @@ function App() {
         isOpen={showWorkPanel}
         onClose={() => {
           setShowWorkPanel(false);
+          setActiveNavTab('Play');
+        }}
+      />
+
+      {/* Friends Panel */}
+      <FriendsPanel
+        isOpen={showFriendsPanel}
+        onClose={() => {
+          setShowFriendsPanel(false);
           setActiveNavTab('Play');
         }}
       />

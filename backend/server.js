@@ -221,7 +221,8 @@ let gameState = {
 app.post('/api/auth/telegram', [
   body('telegramUser').isObject(),
   body('telegramUser.id').isNumeric(),
-  body('telegramUser.first_name').notEmpty().trim().escape()
+  body('telegramUser.first_name').notEmpty().trim().escape(),
+  body('startParam').optional().isString().trim()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -229,7 +230,7 @@ app.post('/api/auth/telegram', [
       return res.status(400).json({ error: 'Invalid Telegram data', details: errors.array() });
     }
 
-    const { telegramUser } = req.body;
+    const { telegramUser, startParam } = req.body;
     
     // Find or create user based on Telegram ID
     let user = await databaseService.findUserByTelegramId(telegramUser.id);
@@ -274,11 +275,35 @@ app.post('/api/auth/telegram', [
       return res.status(500).json({ error: 'Failed to generate tokens' });
     }
 
+    // Handle referral attribution if start_param is provided
+    let referralMessage = null;
+    if (startParam && typeof startParam === 'string' && startParam.startsWith('ref_')) {
+      const refCode = startParam.substring(4); // remove 'ref_' prefix
+      try {
+        const referralResult = await databaseService.attributeReferral({
+          inviteeUserId: user.id,
+          referralCode: refCode,
+          ip: req.ip,
+          deviceId: req.headers['x-device-id'] || null
+        });
+        
+        if (referralResult.success && referralResult.inviteeBonusPaid) {
+          // Update user object to reflect new balance
+          user = await databaseService.findUserById(user.id);
+          referralMessage = `Welcome! You've been referred by ${referralResult.referrerUsername} and received 2,000 points!`;
+        }
+      } catch (e) {
+        // Log but don't fail auth if attribution fails
+        console.warn('Referral attribution skipped:', e.message);
+      }
+    }
+
     res.json({
       success: true,
       user: user,
       token: tokenResult.token,
-      refreshToken: refreshTokenResult.refreshToken
+      refreshToken: refreshTokenResult.refreshToken,
+      referralMessage
     });
   } catch (error) {
     console.error('❌ Telegram authentication error:', error);
@@ -617,6 +642,31 @@ app.get('/api/leaderboard', authService.optionalAuth.bind(authService), async (r
     res.status(500).json({ error: 'Failed to get leaderboard' });
   }
 });
+
+// =============================================================================
+// REFERRAL SYSTEM ROUTES
+// =============================================================================
+
+app.get('/api/referrals/stats',
+  authService.authenticateToken.bind(authService),
+  async (req, res) => {
+    try {
+      const stats = await databaseService.getReferralStats(req.user.id);
+      
+      if (!stats) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      res.json({
+        success: true,
+        stats
+      });
+    } catch (error) {
+      console.error('❌ Referral stats error:', error);
+      res.status(500).json({ error: 'Failed to get referral stats' });
+    }
+  }
+);
 
 // =============================================================================
 // FARMING SYSTEM ROUTES (auth required)
