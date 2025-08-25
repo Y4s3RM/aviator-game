@@ -16,9 +16,29 @@ const AdminUsers = () => {
     try {
       setIsLoading(true);
       const response = await authService.apiRequest(`/admin/users?page=${page}&limit=20&search=${search}`);
-      if (response.success && Array.isArray(response.users?.users)) {
-        setUsers(response.users.users);
-        setTotalPages(response.users.totalPages || 1);
+      
+      console.log('Admin users API response:', response); // Debug log
+      
+      if (response.success) {
+        // Check if response has nested structure or direct array
+        let usersData, totalPagesData;
+        
+        if (Array.isArray(response.users)) {
+          // Direct array format: { users: [...], totalPages: X }
+          usersData = response.users;
+          totalPagesData = response.totalPages || 1;
+        } else if (response.users?.users && Array.isArray(response.users.users)) {
+          // Nested format: { users: { users: [...], totalPages: X } }
+          usersData = response.users.users;
+          totalPagesData = response.users.totalPages || 1;
+        } else {
+          console.error('Unexpected API response structure:', response);
+          usersData = [];
+          totalPagesData = 1;
+        }
+        
+        setUsers(usersData);
+        setTotalPages(totalPagesData);
         setError('');
       } else {
         setError('Failed to load users');
@@ -167,7 +187,7 @@ const AdminUsers = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
-                {Array.isArray(users) ? users.map((user) => (
+                {Array.isArray(users) && users.length > 0 ? users.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-700 transition-colors">
                     <td className="px-4 py-3">
                       <div>

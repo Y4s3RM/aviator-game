@@ -9,6 +9,9 @@ const FriendsPanel = ({ isOpen, onClose }) => {
   
   // Get bot username from environment or hardcode
   const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'AviatorGameBot';
+  
+  // Debug: Log bot username to help with troubleshooting
+  console.log('Bot username:', BOT_USERNAME);
 
   const loadReferralStats = async () => {
     if (!authService.isAuthenticated()) {
@@ -42,14 +45,26 @@ const FriendsPanel = ({ isOpen, onClose }) => {
   }, [isOpen]);
 
   const getReferralLink = () => {
-    if (!stats?.referralCode) return '';
-    return `https://t.me/${BOT_USERNAME}?start=ref_${stats.referralCode}`;
+    if (!stats?.referralCode) {
+      console.log('No referral code available in stats:', stats);
+      return '';
+    }
+    const link = `https://t.me/${BOT_USERNAME}?start=ref_${stats.referralCode}`;
+    console.log('Generated referral link:', link);
+    return link;
   };
 
-  const copyReferralLink = () => {
+  const copyReferralLink = async () => {
     const link = getReferralLink();
-    if (link) {
-      navigator.clipboard.writeText(link).then(() => {
+    if (!link) {
+      alert('No referral link available');
+      return;
+    }
+
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(link);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
         
@@ -57,17 +72,75 @@ const FriendsPanel = ({ isOpen, onClose }) => {
         if (window.Telegram?.WebApp?.HapticFeedback) {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
         }
-      });
+      } else {
+        // Fallback for older browsers or non-HTTPS
+        const textArea = document.createElement('textarea');
+        textArea.value = link;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          document.execCommand('copy');
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+          
+          if (window.Telegram?.WebApp?.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+          }
+        } catch (err) {
+          console.error('Fallback copy failed:', err);
+          // Show the link in a prompt as last resort
+          prompt('Copy this referral link:', link);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+    } catch (err) {
+      console.error('Copy failed:', err);
+      // Show the link in a prompt as last resort
+      prompt('Copy this referral link:', link);
     }
   };
 
   const shareInTelegram = () => {
     const link = getReferralLink();
-    if (link && window.Telegram?.WebApp?.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink(link);
-    } else if (link) {
-      // Fallback for non-Telegram environments
-      window.open(link, '_blank', 'noopener');
+    if (!link) {
+      alert('No referral link available');
+      return;
+    }
+
+    try {
+      // Try Telegram Web App share first
+      if (window.Telegram?.WebApp?.openTelegramLink) {
+        window.Telegram.WebApp.openTelegramLink(link);
+        
+        // Haptic feedback
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        }
+      } else if (navigator.share) {
+        // Try native Web Share API
+        navigator.share({
+          title: 'Join me on Aviator Game!',
+          text: `Play the exciting Aviator game and earn points! Join using my referral link:`,
+          url: link
+        }).catch(err => {
+          console.error('Native share failed:', err);
+          // Fallback to opening link
+          window.open(link, '_blank', 'noopener,noreferrer');
+        });
+      } else {
+        // Fallback for browsers without share API
+        window.open(link, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      console.error('Share failed:', err);
+      // Last resort: open the link
+      window.open(link, '_blank', 'noopener,noreferrer');
     }
   };
 
