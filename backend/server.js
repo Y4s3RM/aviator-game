@@ -1719,7 +1719,7 @@ app.post('/api/admin/setup-password', async (req, res) => {
 // Temporary admin endpoint to fix referral codes
 app.post('/api/admin/fix-referral-codes', requireAdmin, async (req, res) => {
   try {
-    console.log('🔧 Admin triggered referral codes fix...');
+    console.log('🔧 Admin triggered referral codes fix via API...');
     
     // Find users without referral codes
     const usersWithoutCodes = await databaseService.prisma.user.findMany({
