@@ -1667,6 +1667,55 @@ if (process.env.DATABASE_URL) {
   }
 }
 
+// Temporary endpoint to set admin password (no auth required for first-time setup)
+app.post('/api/admin/setup-password', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password required' });
+    }
+    
+    // Check if user exists
+    const user = await databaseService.prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: username },
+          { email: username }
+        ]
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Hash password and update user
+    const bcrypt = require('bcrypt');
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    await databaseService.prisma.user.update({
+      where: { id: user.id },
+      data: { 
+        password: hashedPassword,
+        role: 'ADMIN' // Ensure they have admin role
+      }
+    });
+    
+    console.log(`✅ Password set for admin user: ${user.username}`);
+    
+    res.json({
+      success: true,
+      message: `Password set successfully for ${user.username}`,
+      role: 'ADMIN'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error setting admin password:', error);
+    res.status(500).json({ error: 'Failed to set password' });
+  }
+});
+
 // Temporary admin endpoint to fix referral codes
 app.post('/api/admin/fix-referral-codes', requireAdmin, async (req, res) => {
   try {
