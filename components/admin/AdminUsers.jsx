@@ -16,15 +16,18 @@ const AdminUsers = () => {
     try {
       setIsLoading(true);
       const response = await authService.apiRequest(`/admin/users?page=${page}&limit=20&search=${search}`);
-      if (response.success) {
-        setUsers(response.users);
-        setTotalPages(response.totalPages);
+      if (response.success && Array.isArray(response.users?.users)) {
+        setUsers(response.users.users);
+        setTotalPages(response.users.totalPages || 1);
         setError('');
       } else {
         setError('Failed to load users');
+        setUsers([]);
       }
     } catch (err) {
+      console.error('Admin users error:', err);
       setError(err.message || 'Failed to load users');
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -164,7 +167,7 @@ const AdminUsers = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
-                {users.map((user) => (
+                {Array.isArray(users) ? users.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-700 transition-colors">
                     <td className="px-4 py-3">
                       <div>
@@ -225,7 +228,13 @@ const AdminUsers = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                      {isLoading ? 'Loading users...' : error || 'No users found'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
