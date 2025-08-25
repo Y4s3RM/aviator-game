@@ -1560,6 +1560,7 @@ class DatabaseService {
 
   async getAdminStats() {
     try {
+      console.log('🔧 Getting admin stats...');
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
@@ -1567,6 +1568,82 @@ class DatabaseService {
       const weekAgo = new Date(today);
       weekAgo.setDate(weekAgo.getDate() - 7);
 
+      console.log('📅 Date ranges:', { today, weekAgo });
+
+      let totalUsers, activeToday, activeThisWeek, roundsToday, totalBetsToday,
+          uniquePlayersToday, totalWageredToday, totalWonToday, referralsToday, activationsToday;
+
+      try {
+        console.log('1️⃣ Getting total users...');
+        totalUsers = await prisma.user.count();
+        
+        console.log('2️⃣ Getting active users today...');
+        activeToday = await prisma.user.count({
+          where: { lastLoginAt: { gte: today } }
+        });
+        
+        console.log('3️⃣ Getting active users this week...');
+        activeThisWeek = await prisma.user.count({
+          where: { lastLoginAt: { gte: weekAgo } }
+        });
+        
+        console.log('4️⃣ Getting game rounds today...');
+        roundsToday = await prisma.gameRound.count({
+          where: { createdAt: { gte: today } }
+        });
+        
+        console.log('5️⃣ Getting bets today...');
+        totalBetsToday = await prisma.bet.count({
+          where: { placedAt: { gte: today } }
+        });
+        
+        console.log('6️⃣ Getting unique players today...');
+        const uniquePlayers = await prisma.bet.findMany({
+          where: { placedAt: { gte: today } },
+          select: { userId: true },
+          distinct: ['userId']
+        });
+        uniquePlayersToday = uniquePlayers.length;
+        
+        console.log('7️⃣ Getting total wagered today...');
+        const wagerResult = await prisma.bet.aggregate({
+          where: { placedAt: { gte: today } },
+          _sum: { amount: true }
+        });
+        totalWageredToday = wagerResult._sum.amount || 0;
+        
+        console.log('8️⃣ Getting total won today...');
+        const wonResult = await prisma.bet.aggregate({
+          where: { 
+            placedAt: { gte: today },
+            status: 'CASHED_OUT'
+          },
+          _sum: { payout: true }
+        });
+        totalWonToday = wonResult._sum.payout || 0;
+        
+        console.log('9️⃣ Getting referrals today...');
+        referralsToday = await prisma.referral.count({
+          where: { createdAt: { gte: today } }
+        });
+        
+        console.log('🔟 Getting activations today...');
+        activationsToday = await prisma.referral.count({
+          where: {
+            activationEventAt: { gte: today },
+            referrerRewardStatus: 'PAID'
+          }
+        });
+        
+        console.log('✅ All queries completed successfully');
+        
+      } catch (queryError) {
+        console.error('❌ Query error in admin stats:', queryError);
+        throw queryError;
+      }
+
+      // Use the old Promise.all approach as fallback comment
+      /*
       const [
         totalUsers,
         activeToday,
@@ -1718,7 +1795,17 @@ class DatabaseService {
       };
     } catch (error) {
       console.error('❌ Error getting admin stats:', error);
-      throw error;
+      console.error('❌ Error details:', error.message);
+      console.error('❌ Error stack:', error.stack);
+      
+      // Return a safe fallback instead of throwing
+      return {
+        users: { total: 0, activeToday: 0, activeThisWeek: 0, percentActiveToday: 0 },
+        gameplay: { roundsToday: 0, betsToday: 0, uniquePlayersToday: 0, avgBetsPerPlayer: 0, avgCrashToday: '0.00' },
+        economy: { totalWageredToday: '0', totalWonToday: '0', houseEdgeToday: '0', houseEdgePercent: 0 },
+        referrals: { newToday: 0, activatedToday: 0, conversionRate: 0 },
+        error: 'Failed to load complete stats: ' + error.message
+      };
     }
   }
 
