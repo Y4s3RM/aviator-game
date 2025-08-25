@@ -1087,6 +1087,42 @@ class DatabaseService {
     }
   }
 
+  async getUserBets(userId, page = 1, limit = 10) {
+    try {
+      const skip = (page - 1) * limit;
+      const [bets, total] = await Promise.all([
+        prisma.bet.findMany({
+          where: { userId },
+          skip,
+          take: limit,
+          orderBy: { placedAt: 'desc' },
+          include: {
+            gameRound: {
+              select: {
+                id: true,
+                roundNumber: true,
+                crashPoint: true,
+                createdAt: true
+              }
+            }
+          }
+        }),
+        prisma.bet.count({ where: { userId } })
+      ]);
+
+      return {
+        success: true,
+        bets,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+      };
+    } catch (error) {
+      console.error('❌ Error getting user bets:', error);
+      return { success: false, error: 'Failed to get user bets' };
+    }
+  }
+
   async getReferralStats(userId) {
     try {
       const user = await prisma.user.findUnique({
@@ -1218,53 +1254,52 @@ class DatabaseService {
 
   // ==================== ADMIN METHODS ====================
   
-  // NOTE: This method is duplicated - using the more comprehensive one below
-  // async getAdminStats() {
-  //   try {
-  //     const [
-  //       totalUsers,
-  //       totalGames,
-  //       totalBets,
-  //       activeUsers,
-  //       recentUsers
-  //     ] = await Promise.all([
-  //       prisma.user.count(),
-  //       prisma.gameRound.count(),
-  //       prisma.bet.count(),
-  //       prisma.user.count({ where: { isActive: true } }),
-  //       prisma.user.count({
-  //         where: {
-  //           createdAt: {
-  //             gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-  //           }
-  //         }
-  //       })
-  //     ]);
+  async getAdminStats() {
+    try {
+      const [
+        totalUsers,
+        totalGames,
+        totalBets,
+        activeUsers,
+        recentUsers
+      ] = await Promise.all([
+        prisma.user.count(),
+        prisma.gameRound.count(),
+        prisma.bet.count(),
+        prisma.user.count({ where: { isActive: true } }),
+        prisma.user.count({
+          where: {
+            createdAt: {
+              gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+            }
+          }
+        })
+      ]);
 
-  //     const totalWagered = await prisma.bet.aggregate({
-  //       _sum: { amount: true }
-  //     });
+      const totalWagered = await prisma.bet.aggregate({
+        _sum: { amount: true }
+      });
 
-  //     const totalWon = await prisma.bet.aggregate({
-  //       _sum: { payout: true },
-  //       where: { status: 'CASHED_OUT' }
-  //     });
+      const totalWon = await prisma.bet.aggregate({
+        _sum: { payout: true },
+        where: { status: 'CASHED_OUT' }
+      });
 
-  //     return {
-  //       totalUsers,
-  //       totalGames,
-  //       totalBets,
-  //       activeUsers,
-  //       recentUsers,
-  //       totalWagered: totalWagered._sum.amount || 0,
-  //       totalWon: totalWon._sum.payout || 0,
-  //       houseProfit: (totalWagered._sum.amount || 0) - (totalWon._sum.payout || 0)
-  //     };
-  //   } catch (error) {
-  //     console.error('❌ Error getting admin stats:', error);
-  //     throw error;
-  //   }
-  // }
+      return {
+        totalUsers,
+        totalGames,
+        totalBets,
+        activeUsers,
+        recentUsers,
+        totalWagered: totalWagered._sum.amount || 0,
+        totalWon: totalWon._sum.payout || 0,
+        houseProfit: (totalWagered._sum.amount || 0) - (totalWon._sum.payout || 0)
+      };
+    } catch (error) {
+      console.error('❌ Error getting admin stats:', error);
+      throw error;
+    }
+  }
 
   async getAllUsers(page = 1, limit = 50, search = '') {
     try {
@@ -1577,7 +1612,7 @@ class DatabaseService {
         // Total bets today
         prisma.bet.count({
           where: {
-            placedAt: {
+            createdAt: {
               gte: today
             }
           }
@@ -1586,7 +1621,7 @@ class DatabaseService {
         // Unique players today
         prisma.bet.findMany({
           where: {
-            placedAt: {
+            createdAt: {
               gte: today
             }
           },
@@ -1599,7 +1634,7 @@ class DatabaseService {
         // Total wagered today
         prisma.bet.aggregate({
           where: {
-            placedAt: {
+            createdAt: {
               gte: today
             }
           },
@@ -1611,10 +1646,10 @@ class DatabaseService {
         // Total won today
         prisma.bet.aggregate({
           where: {
-            placedAt: {
+            createdAt: {
               gte: today
             },
-            status: 'CASHED_OUT'
+            status: 'WON'
           },
           _sum: {
             payout: true

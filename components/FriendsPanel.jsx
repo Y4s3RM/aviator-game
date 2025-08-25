@@ -24,11 +24,15 @@ const FriendsPanel = ({ isOpen, onClose }) => {
       setIsLoading(true);
       const result = await authService.getReferralStats();
       
+      console.log('Referral stats API result:', result); // Debug log
+      
       if (result.success && result.stats) {
         setStats(result.stats);
+        console.log('Referral stats loaded:', result.stats); // Debug log
         setError('');
       } else {
         setError(result.error || 'Failed to load referral stats');
+        console.error('Referral stats error:', result.error); // Debug log
       }
     } catch (error) {
       setError('Failed to load referral stats');

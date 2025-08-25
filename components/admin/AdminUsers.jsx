@@ -77,15 +77,11 @@ const AdminUsers = () => {
         }
         
         // Show success message
-        if (window.Telegram?.WebApp?.showAlert) {
-          window.Telegram.WebApp.showAlert(`User ${ban ? 'banned' : 'unbanned'} successfully`);
-        }
+        alert(`User ${ban ? 'banned' : 'unbanned'} successfully`);
       }
     } catch (err) {
       console.error('Ban/unban error:', err);
-      if (window.Telegram?.WebApp?.showAlert) {
-        window.Telegram.WebApp.showAlert(`Failed to ${ban ? 'ban' : 'unban'} user`);
-      }
+      alert(`Failed to ${ban ? 'ban' : 'unban'} user: ${err.message}`);
     }
   };
 
