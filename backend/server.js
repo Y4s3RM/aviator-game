@@ -1667,6 +1667,65 @@ if (process.env.DATABASE_URL) {
   }
 }
 
+// Temporary admin endpoint to fix referral codes
+app.post('/api/admin/fix-referral-codes', requireAdmin, async (req, res) => {
+  try {
+    console.log('🔧 Admin triggered referral codes fix...');
+    
+    // Find users without referral codes
+    const usersWithoutCodes = await databaseService.prisma.user.findMany({
+      where: {
+        OR: [
+          { referralCode: null },
+          { referralCode: '' }
+        ]
+      },
+      select: {
+        id: true,
+        username: true,
+        referralCode: true
+      }
+    });
+    
+    console.log(`📊 Found ${usersWithoutCodes.length} users without referral codes`);
+    
+    let fixedCount = 0;
+    for (const user of usersWithoutCodes) {
+      try {
+        // Generate a unique referral code
+        const referralCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        
+        await databaseService.prisma.user.update({
+          where: { id: user.id },
+          data: { referralCode }
+        });
+        
+        console.log(`✅ Fixed referral code for user ${user.username}: ${referralCode}`);
+        fixedCount++;
+      } catch (error) {
+        console.error(`❌ Failed to fix referral code for user ${user.username}:`, error);
+      }
+    }
+    
+    console.log(`🎉 Successfully fixed ${fixedCount} referral codes`);
+    
+    res.json({
+      success: true,
+      message: `Fixed ${fixedCount} referral codes`,
+      usersFixed: fixedCount,
+      totalUsersFound: usersWithoutCodes.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in fix-referral-codes endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fix referral codes',
+      details: error.message
+    });
+  }
+});
+
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
