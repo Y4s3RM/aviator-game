@@ -120,15 +120,15 @@ const FriendsPanel = ({ isOpen, onClose }) => {
       return;
     }
 
-    // Fred's recommended shareReferral function
-    const shareReferral = (tg, referralCode, botUsername) => {
-      // Your deep link for attribution in Mini App:
-      const deepLink = `https://t.me/${botUsername}?start=ref_${referralCode}`;
+    // Use the same link format as copy button (Mini App format)
+    const shareReferral = (tg, referralCode, botUsername, shortName) => {
+      // Use same format as getReferralLink() - Mini App deep link
+      const deepLink = `https://t.me/${botUsername}/${shortName}?startapp=ref_${referralCode}`;
       const text = `🚀 Join me in Aviator! Claim your bonus with my link:`;
 
       // Preferred: open Telegram share chooser
       if (tg && tg.openTelegramLink) {
-        console.log('🚀 Using Telegram native share chooser');
+        console.log('🚀 Using Telegram native share chooser with Mini App link');
         tg.openTelegramLink(
           `https://t.me/share/url?url=${encodeURIComponent(deepLink)}&text=${encodeURIComponent(text)}`
         );
@@ -140,7 +140,7 @@ const FriendsPanel = ({ isOpen, onClose }) => {
     try {
       // Try Fred's native Telegram share first
       if (window.Telegram && window.Telegram.WebApp) {
-        const success = shareReferral(window.Telegram.WebApp, referralCode, BOT_USERNAME);
+        const success = shareReferral(window.Telegram.WebApp, referralCode, BOT_USERNAME, SHORT_NAME);
         if (success) {
           // Haptic feedback for successful share
           if (window.Telegram.WebApp.HapticFeedback) {
@@ -150,8 +150,8 @@ const FriendsPanel = ({ isOpen, onClose }) => {
         }
       }
 
-      // Fallbacks (outside Telegram or very old clients)
-      const deepLink = `https://t.me/${BOT_USERNAME}?start=ref_${referralCode}`;
+      // Fallbacks (outside Telegram or very old clients) - use same Mini App format
+      const deepLink = `https://t.me/${BOT_USERNAME}/${SHORT_NAME}?startapp=ref_${referralCode}`;
       const text = `🚀 Join me in Aviator! Claim your bonus with my link:`;
       const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(deepLink)}&text=${encodeURIComponent(text)}`;
       
