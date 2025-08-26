@@ -13,6 +13,7 @@ import RanksPanel from './components/RanksPanel.jsx';
 import FairnessPage from './components/FairnessPage.jsx';
 import WorkPanel from './components/WorkPanel.jsx';
 import FriendsPanel from './components/FriendsPanel.jsx';
+import EarnTab from './components/EarnTab.jsx';
 import AdminDashboard from './components/admin/AdminDashboard.jsx';
 import { useGameBackend } from './components/hooks/useGameBackend.js';
 import soundEffects from './components/utils/soundEffects.js';
@@ -62,6 +63,7 @@ function App() {
   const [showFairnessPage, setShowFairnessPage] = useState(false);
   const [showWorkPanel, setShowWorkPanel] = useState(false);
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
+  const [showEarnPanel, setShowEarnPanel] = useState(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [prevGameState, setPrevGameState] = useState(gameState);
   const [prevCountdown, setPrevCountdown] = useState(countdown);
@@ -563,6 +565,8 @@ function App() {
           setActiveNavTab(tab);
           if (tab === 'Ranks') {
             setShowRanksPanel(true);
+          } else if (tab === 'Earn') {
+            setShowEarnPanel(true);
           } else if (tab === 'Work') {
             setShowWorkPanel(true);
           } else if (tab === 'Friends') {
@@ -593,6 +597,15 @@ function App() {
         isOpen={showWorkPanel}
         onClose={() => {
           setShowWorkPanel(false);
+          setActiveNavTab('Play');
+        }}
+      />
+
+      {/* Earn Panel */}
+      <EarnTab
+        isOpen={showEarnPanel}
+        onClose={() => {
+          setShowEarnPanel(false);
           setActiveNavTab('Play');
         }}
       />
