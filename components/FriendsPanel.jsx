@@ -112,43 +112,64 @@ const FriendsPanel = ({ isOpen, onClose }) => {
     }
   };
 
+  // Fred's Native Telegram Share Solution
   const shareInTelegram = () => {
-    const link = getReferralLink();
-    if (!link) {
-      alert('No referral link available');
+    const referralCode = stats?.referralCode;
+    if (!referralCode) {
+      alert('No referral code available');
       return;
     }
 
+    // Fred's recommended shareReferral function
+    const shareReferral = (tg, referralCode, botUsername) => {
+      // Your deep link for attribution in Mini App:
+      const deepLink = `https://t.me/${botUsername}?start=ref_${referralCode}`;
+      const text = `🚀 Join me in Aviator! Claim your bonus with my link:`;
+
+      // Preferred: open Telegram share chooser
+      if (tg && tg.openTelegramLink) {
+        console.log('🚀 Using Telegram native share chooser');
+        tg.openTelegramLink(
+          `https://t.me/share/url?url=${encodeURIComponent(deepLink)}&text=${encodeURIComponent(text)}`
+        );
+        return true;
+      }
+      return false;
+    };
+
     try {
-      // Try Telegram Web App inline sharing first - Safe for older browsers
-      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.switchInlineQuery) {
-        const shareText = '🎮 Join me on Aviator Game! Play the exciting crash game and earn points! ' + link;
-        window.Telegram.WebApp.switchInlineQuery(shareText, ['users', 'groups']);
-        
-        // Haptic feedback
-        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      // Try Fred's native Telegram share first
+      if (window.Telegram && window.Telegram.WebApp) {
+        const success = shareReferral(window.Telegram.WebApp, referralCode, BOT_USERNAME);
+        if (success) {
+          // Haptic feedback for successful share
+          if (window.Telegram.WebApp.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+          }
+          return;
         }
-      } else if (navigator.share) {
-        // Try native Web Share API
-        navigator.share({
-          title: 'Join me on Aviator Game!',
-          text: 'Play the exciting Aviator game and earn points! Join using my referral link:',
-          url: link
-        }).catch(err => {
+      }
+
+      // Fallbacks (outside Telegram or very old clients)
+      const deepLink = `https://t.me/${BOT_USERNAME}?start=ref_${referralCode}`;
+      const text = `🚀 Join me in Aviator! Claim your bonus with my link:`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(deepLink)}&text=${encodeURIComponent(text)}`;
+      
+      console.log('📱 Using fallback share methods');
+      
+      if (navigator.share) {
+        navigator.share({ title: 'Aviator', text, url: deepLink }).catch(err => {
           console.error('Native share failed:', err);
-          // Fallback to copy link
-          copyReferralLink();
+          window.location.href = shareUrl;
         });
       } else {
-        // Fallback for browsers without share API - copy the link
-        alert('Share feature not available. The referral link has been copied to your clipboard!');
-        copyReferralLink();
+        window.location.href = shareUrl;
       }
-    } catch (err) {
-      console.error('Share failed:', err);
-      // Last resort: show the link to copy manually
-      prompt('Share this referral link:', link);
+    } catch (error) {
+      console.error('Share error:', error);
+      // Final fallback: copy link
+      alert('Share feature not available. The referral link has been copied to your clipboard!');
+      copyReferralLink();
     }
   };
 
