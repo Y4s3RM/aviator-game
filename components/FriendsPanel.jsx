@@ -118,9 +118,10 @@ const FriendsPanel = ({ isOpen, onClose }) => {
     }
 
     try {
-      // Try Telegram Web App share first
-      if (window.Telegram?.WebApp?.openTelegramLink) {
-        window.Telegram.WebApp.openTelegramLink(link);
+      // Try Telegram Web App inline sharing first
+      if (window.Telegram?.WebApp?.switchInlineQuery) {
+        const shareText = `🎮 Join me on Aviator Game! Play the exciting crash game and earn points! ${link}`;
+        window.Telegram.WebApp.switchInlineQuery(shareText, ['users', 'groups']);
         
         // Haptic feedback
         if (window.Telegram?.WebApp?.HapticFeedback) {
@@ -134,17 +135,18 @@ const FriendsPanel = ({ isOpen, onClose }) => {
           url: link
         }).catch(err => {
           console.error('Native share failed:', err);
-          // Fallback to opening link
-          window.open(link, '_blank', 'noopener,noreferrer');
+          // Fallback to copy link
+          copyReferralLink();
         });
       } else {
-        // Fallback for browsers without share API
-        window.open(link, '_blank', 'noopener,noreferrer');
+        // Fallback for browsers without share API - copy the link
+        alert('Share feature not available. The referral link has been copied to your clipboard!');
+        copyReferralLink();
       }
     } catch (err) {
       console.error('Share failed:', err);
-      // Last resort: open the link
-      window.open(link, '_blank', 'noopener,noreferrer');
+      // Last resort: show the link to copy manually
+      prompt('Share this referral link:', link);
     }
   };
 
