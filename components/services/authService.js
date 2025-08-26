@@ -17,24 +17,39 @@ class AuthService {
       }
 
       console.log(`🌐 Sending request to: ${this.baseURL}/auth/telegram`);
-      console.log('🌐 Request payload:', JSON.stringify({ telegramUser, startParam }, null, 2));
       console.log('🌐 User agent:', navigator.userAgent);
       console.log('🌐 Request headers:', {
         'Content-Type': 'application/json',
         'X-Device-Id': deviceId
       });
       
+      // Fred's Fix: Proper payload formatting
+      const payload = {
+        telegramUser: {
+          id: Number(telegramUser.id),
+          first_name: String(telegramUser.first_name || ''),
+          last_name: telegramUser.last_name || null,
+          username: telegramUser.username || null,
+          photo_url: telegramUser.photo_url || null,
+          language_code: telegramUser.language_code || null
+        },
+        // Only include startParam if it exists (don't send null/undefined)
+        ...(startParam ? { startParam: String(startParam) } : {})
+      };
+      
+      console.log('🌐 Request payload:', JSON.stringify(payload, null, 2));
+
       const res = await fetch(`${this.baseURL}/auth/telegram`, {
         method: 'POST',
         mode: 'cors', // Explicitly set CORS mode
         cache: 'no-cache',
-        credentials: 'omit', // Try without credentials first
+        credentials: 'omit', // Fred: bearer-token based, no cookies needed
         headers: { 
           'Content-Type': 'application/json',
-          'X-Device-Id': deviceId,
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'X-Device-Id': deviceId   // Fred: now allowed by server CORS
         },
-        body: JSON.stringify({ telegramUser, startParam })
+        body: JSON.stringify(payload)
       });
       
       console.log(`🌐 Backend response: HTTP ${res.status} ${res.statusText}`);

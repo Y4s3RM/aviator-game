@@ -67,8 +67,20 @@ const parseOrigins = (val) => (val || '')
   .map(s => s.trim())
   .filter(Boolean);
 
+// Fred's Fix: Telegram WebView Origins
+const TELEGRAM_ORIGINS = [
+  'https://t.me',
+  'https://web.telegram.org',
+  'https://web.telegram.org/a',     // new WebApp domain variant
+  'https://miniapp-assets.telegram.org', // asset host some clients use
+  'https://telegram.org'
+];
+
 const allowedOrigins = isProduction
-  ? parseOrigins(process.env.CORS_ORIGINS)
+  ? [
+      ...parseOrigins(process.env.CORS_ORIGINS), // your comma-separated env list
+      ...TELEGRAM_ORIGINS
+    ]
   : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:3001'];
 
 // CORS middleware with error handling
@@ -78,17 +90,14 @@ const corsMiddleware = cors({
       // Allow no origin (mobile apps, Postman, curl, Telegram WebView)
       if (!origin) return callback(null, true);
       
-      // Allow Telegram WebView origins (they often contain 'telegram')
-      if (origin && origin.includes('telegram')) {
-        console.log(`✅ CORS allowing Telegram origin: ${origin}`);
-        return callback(null, true);
-      }
-      
       // Development mode: allow all
       if (!isProduction) return callback(null, true);
       
-      // Production: check allowlist
-      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Production: check allowlist (now includes Telegram origins)
+      if (allowedOrigins.includes(origin)) {
+        console.log(`✅ CORS allowing origin: ${origin}`);
+        return callback(null, true);
+      }
       
       console.log(`❌ CORS blocked origin: ${origin}`);
       console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
@@ -100,14 +109,16 @@ const corsMiddleware = cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  // IMPORTANT: include any custom headers you actually send
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
+    'Content-Type',
+    'Authorization',
     'Sec-WebSocket-Protocol',
-    'X-Device-Id',
-    'User-Agent',
+    'X-Device-Id',              // <-- Fred's fix: this was missing!
+    'X-Telegram-Init-Data',     // (optional) if you decide to validate initData
     'Accept',
-    'Accept-Language'
+    'Accept-Language',
+    'User-Agent'
   ],
   preflightContinue: false,
   optionsSuccessStatus: 204
@@ -244,18 +255,8 @@ let gameState = {
 // AUTHENTICATION ROUTES
 // =============================================================================
 
-// TEST ROUTE - Debug route registration
-app.get('/api/test', (req, res) => {
-  res.json({ success: true, message: 'Test route working!' });
-});
-
-// SIMPLE TELEGRAM ROUTE - Testing without validation middleware
-app.post('/api/auth/telegram', async (req, res) => {
-  res.json({ success: true, message: 'Simple route working!', body: req.body });
-});
-
-// COMPLEX TELEGRAM ROUTE - With full validation (backup)
-app.post('/api/auth/telegram-full', [
+// Telegram authentication for players
+app.post('/api/auth/telegram', [
   body('telegramUser').isObject(),
   body('telegramUser.id').isNumeric(),
   body('telegramUser.first_name').notEmpty().trim().escape(),
@@ -1918,6 +1919,7 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔐 CORS origins: ${allowedOrigins.join(', ') || 'development mode (all origins)'}`);
+  console.log(`🎯 Telegram origins supported: ${TELEGRAM_ORIGINS.join(', ')}`);
   console.log('✅ Server started successfully');
   startGameLoop();
 }).on('error', (err) => {
