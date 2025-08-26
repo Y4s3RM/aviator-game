@@ -41,7 +41,7 @@ const EarnTab = ({ isOpen, onClose }) => {
     setClaiming(true);
     try {
       const res = await authService.apiRequest('/farming/claim', { method: 'POST' });
-      if (res.success) {
+      if (res.success && res.rewardPoints) {
         hapticFeedback('notification', 'success');
         // Refresh farming status
         loadData();
@@ -53,7 +53,7 @@ const EarnTab = ({ isOpen, onClose }) => {
           alert(message);
         }
       } else {
-        const errorMsg = res.error || 'Failed to claim';
+        const errorMsg = res.error || res.message || 'Farming endpoint not implemented yet';
         if (tg?.showAlert) {
           tg.showAlert(errorMsg);
         } else {
@@ -62,7 +62,7 @@ const EarnTab = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       console.error('Claim error:', error);
-      const errorMsg = 'Failed to claim farming reward';
+      const errorMsg = 'Farming endpoints not implemented yet';
       if (tg?.showAlert) {
         tg.showAlert(errorMsg);
       } else {
@@ -112,7 +112,7 @@ const EarnTab = ({ isOpen, onClose }) => {
         body: { questId } 
       });
       
-      if (res.success) {
+      if (res.success && res.reward) {
         hapticFeedback('notification', 'success');
         setQuests(prev => prev.map(x => x.id === questId ? { ...x, status: 'CLAIMED' } : x));
         
@@ -125,7 +125,7 @@ const EarnTab = ({ isOpen, onClose }) => {
       } else {
         // Revert optimistic update
         setQuests(prev => prev.map(x => x.id === questId ? { ...x, status: 'COMPLETED' } : x));
-        const errorMsg = res.error || 'Failed to claim quest';
+        const errorMsg = res.error || res.message || 'Quest endpoints not implemented yet';
         if (tg?.showAlert) {
           tg.showAlert(errorMsg);
         } else {
@@ -136,6 +136,12 @@ const EarnTab = ({ isOpen, onClose }) => {
       console.error('Quest claim error:', error);
       // Revert optimistic update
       setQuests(prev => prev.map(x => x.id === questId ? { ...x, status: 'COMPLETED' } : x));
+      const errorMsg = 'Quest endpoints not implemented yet';
+      if (tg?.showAlert) {
+        tg.showAlert(errorMsg);
+      } else {
+        alert(errorMsg);
+      }
     }
   };
 
