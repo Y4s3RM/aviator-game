@@ -8,7 +8,7 @@ const FriendsPanel = ({ isOpen, onClose }) => {
   const [copied, setCopied] = useState(false);
   
   // Get bot username from environment or hardcode
-  const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'AviatorGameBot';
+  const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'aviador_game_test_bot';
   
   // Debug: Log bot username to help with troubleshooting
   console.log('Bot username:', BOT_USERNAME);
@@ -53,7 +53,7 @@ const FriendsPanel = ({ isOpen, onClose }) => {
       console.log('No referral code available in stats:', stats);
       return '';
     }
-    const link = `https://t.me/${BOT_USERNAME}?start=ref_${stats.referralCode}`;
+    const link = `https://t.me/${BOT_USERNAME}/${BOT_USERNAME}?startapp=ref_${stats.referralCode}`;
     console.log('Generated referral link:', link);
     return link;
   };
