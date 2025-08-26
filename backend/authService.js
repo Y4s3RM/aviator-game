@@ -20,15 +20,16 @@ class AuthService {
     this.sessionTTL = 24 * 60 * 60 * 1000; // 24 hours
   }
 
-  // Generate JWT token
+  // Fred's Fix: Generate JWT token with stable sub claim and relaxed session policy
   generateToken(user) {
     try {
       const payload = {
-        userId: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        iat: Math.floor(Date.now() / 1000)
+        sub: String(user.id),             // Fred's canonical ID claim
+        userId: String(user.id),          // legacy compatibility
+        username: user.username || null,
+        email: user.email || null,
+        role: user.role || 'PLAYER',
+        telegramId: user.telegramId || null,
       };
 
       const token = jwt.sign(payload, this.jwtSecret, {
@@ -37,24 +38,20 @@ class AuthService {
         audience: 'aviator-players'
       });
 
-      // Store session with expiration
-      const session = {
+      // Fred's Fix: Track sessions by token (not userId) to allow multiple valid tokens
+      this.activeSessions.set(token, {
         token,
-        userId: user.id,
+        userId: String(user.id),
         createdAt: new Date().toISOString(),
         lastActivity: new Date().toISOString(),
         expiresAt: new Date(Date.now() + this.sessionTTL).toISOString()
-      };
-      
-      this.activeSessions.set(user.id, session);
-      
-      // Clean up old sessions periodically
-      this.cleanupExpiredSessions();
+      });
 
+      this.cleanupExpiredSessions();
       console.log(`🎫 Generated token for user: ${user.username}`);
       return { success: true, token };
-    } catch (error) {
-      console.error('❌ Error generating token:', error);
+    } catch (e) {
+      console.error('❌ Error generating token:', e);
       return { success: false, error: 'Failed to generate token' };
     }
   }
@@ -81,7 +78,7 @@ class AuthService {
     }
   }
 
-  // Verify JWT token
+  // Fred's Fix: Verify JWT token with relaxed session policy
   verifyToken(token) {
     try {
       const decoded = jwt.verify(token, this.jwtSecret, {
@@ -89,26 +86,16 @@ class AuthService {
         audience: 'aviator-players'
       });
 
-      // If we track active sessions, prefer them; otherwise allow stateless JWTs
-      const session = this.activeSessions.get(decoded.userId);
-      if (session) {
-        if (session.token !== token) {
-          return { success: false, error: 'Session mismatch' };
-        }
-        // Update last activity for tracked sessions
-        session.lastActivity = new Date().toISOString();
-      }
+      // Fred's Fix: Optional activity tracking; do NOT force-match token to user session
+      const session = this.activeSessions.get(token);
+      if (session) session.lastActivity = new Date().toISOString();
 
       return { success: true, decoded };
     } catch (error) {
-      if (error.name === 'TokenExpiredError') {
-        return { success: false, error: 'Token expired' };
-      } else if (error.name === 'JsonWebTokenError') {
-        return { success: false, error: 'Invalid token' };
-      } else {
-        console.error('❌ Error verifying token:', error);
-        return { success: false, error: 'Token verification failed' };
-      }
+      if (error.name === 'TokenExpiredError') return { success: false, error: 'Token expired' };
+      if (error.name === 'JsonWebTokenError') return { success: false, error: 'Invalid token' };
+      console.error('❌ Error verifying token:', error);
+      return { success: false, error: 'Token verification failed' };
     }
   }
 
@@ -133,24 +120,32 @@ class AuthService {
     }
   }
 
-  // Logout user (invalidate session)
-  logout(userId) {
+  // Fred's Fix: Logout token (invalidate specific session)
+  logout(token) {
     try {
-      this.activeSessions.delete(userId);
-      console.log(`👋 User logged out: ${userId}`);
+      const session = this.activeSessions.get(token);
+      if (session) {
+        this.activeSessions.delete(token);
+        console.log(`👋 Token logged out for user: ${session.userId}`);
+      }
       return { success: true };
     } catch (error) {
-      console.error('❌ Error logging out user:', error);
+      console.error('❌ Error logging out token:', error);
       return { success: false, error: 'Logout failed' };
     }
   }
 
-  // Logout all sessions for user
+  // Fred's Fix: Logout all sessions for user (by userId)
   logoutAllSessions(userId) {
     try {
-      // In a real implementation, you'd invalidate all tokens for this user
-      this.activeSessions.delete(userId);
-      console.log(`👋 All sessions logged out for user: ${userId}`);
+      let loggedOutCount = 0;
+      for (const [token, session] of this.activeSessions.entries()) {
+        if (session.userId === userId) {
+          this.activeSessions.delete(token);
+          loggedOutCount++;
+        }
+      }
+      console.log(`👋 Logged out ${loggedOutCount} sessions for user: ${userId}`);
       return { success: true };
     } catch (error) {
       console.error('❌ Error logging out all sessions:', error);
@@ -224,14 +219,14 @@ class AuthService {
     return this.activeSessions.size;
   }
 
-  // Clean up expired sessions (call periodically)
+  // Fred's Fix: Clean up expired sessions (token-based keys)
   cleanupExpiredSessions() {
     const now = new Date().toISOString();
     let cleanedCount = 0;
 
-    for (const [userId, session] of this.activeSessions.entries()) {
+    for (const [token, session] of this.activeSessions.entries()) {
       if (session.expiresAt && new Date(session.expiresAt) < new Date(now)) {
-        this.activeSessions.delete(userId);
+        this.activeSessions.delete(token);
         cleanedCount++;
       }
     }

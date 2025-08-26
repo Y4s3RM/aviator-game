@@ -992,6 +992,17 @@ app.get('/api/admin/audit-logs/:targetType/:targetId', requireAdmin, async (req,
 // PUBLIC ROUTES
 // =============================================================================
 
+// Fred's Debug Endpoint (remove after testing)
+app.get('/api/auth/debug-token', (req, res) => {
+  const token = (req.headers.authorization || '').split(' ')[1] || '';
+  const result = authService.verifyToken(token);
+  res.json({
+    tokenProvided: !!token,
+    verification: result,
+    activeSessionsCount: authService.getActiveSessionsCount()
+  });
+});
+
 // Telegram referral tracking (Fred's implementation)
 app.post('/api/referral/track', async (req, res) => {
   try {
@@ -1434,19 +1445,35 @@ wss.on('connection', async (ws, req) => {
     if (!verification.success) {
       console.log('🟥 JWT verification failed:', verification.error || verification);
     } else {
-      // Fred's safeguard: handle both userId and id claims
-      const uid = verification.decoded.userId || verification.decoded.id;
-      user = uid ? await databaseService.findUserById(uid) : null;
-      
-      if (!user) {
-        console.log('🟥 JWT OK but user not found (userId:', uid, ') - stale token, continuing as guest');
-        // Don't error out - just continue as guest with stale JWT
-      } else if (!user.isActive) {
-        console.log('🟥 User inactive:', user.username, '- continuing as guest');
-      } else {
-        userId = user.id;
+      // Fred's Fix: Robust user resolution with sub claim + fallbacks
+      const d = verification.decoded;
+      const claimedId = d.sub || d.userId || d.id;   // prefer sub (Fred's standard)
+      let u = null;
+
+      // Look up by canonical DB id
+      try {
+        if (claimedId) u = await databaseService.findUserById(String(claimedId));
+      } catch (e) {
+        console.log('findUserById error:', e?.message);
+      }
+
+      // Fred's Fallback: try telegramId if present (and id lookup failed)
+      if (!u && d.telegramId && databaseService.findUserByTelegramId) {
+        try {
+          u = await databaseService.findUserByTelegramId(d.telegramId);
+          if (u) console.log('✅ Found user via telegramId fallback');
+        } catch (_) {}
+      }
+
+      if (u && u.isActive) {
+        user = u;
+        userId = String(u.id);
         isGuest = false;
-        console.log(`🔐 WS authenticated as ${user.username} (${user.id})`);
+        console.log(`🔐 WS authenticated as ${u.username} (${userId})`);
+      } else if (!u) {
+        console.log(`🟥 JWT OK but user not found (claimedId: ${claimedId}) - continuing as guest`);
+      } else if (!u.isActive) {
+        console.log('🟥 User inactive - continuing as guest');
       }
     }
   }
