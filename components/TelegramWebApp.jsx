@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import authService from './services/authService.js';
+import gameService from './services/gameService.js';
 
 // Telegram WebApp integration component
 const TelegramWebApp = ({ children }) => {
@@ -23,6 +24,10 @@ const TelegramWebApp = ({ children }) => {
         setIsAuthenticated(true);
         setAuthError(null);
         console.log('✅ Authentication successful');
+        
+        // Fred's Fix: Reconnect WebSocket with fresh JWT token
+        console.log('🔄 Reconnecting WebSocket after Telegram authentication...');
+        gameService.reconnect();
         
         // Show referral message if present - Safe for older browsers
         if (result.referralMessage) {

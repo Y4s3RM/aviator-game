@@ -1414,26 +1414,38 @@ wss.on('connection', async (ws, req) => {
   let user = null;
   let isGuest = true;
 
-  // Try to authenticate user from token in query params or headers
+  // Fred's Enhanced Authentication & Logging
   const url = new URL(req.url, `http://${req.headers.host}`);
   let token = url.searchParams.get('token') || req.headers.authorization?.split(' ')[1];
+  
   // Also accept token via WebSocket subprotocols: ['auth','bearer.<token>']
   if (!token && req.headers['sec-websocket-protocol']) {
-    const prot = req.headers['sec-websocket-protocol']
-      .split(',')
-      .map(s => s.trim());
+    const prot = req.headers['sec-websocket-protocol'].split(',').map(s => s.trim());
     const bearer = prot.find(p => p.startsWith('bearer.'));
     if (bearer) token = bearer.substring('bearer.'.length);
   }
 
+  if (!token) {
+    console.log('🟨 WS connected without token → guest session');
+  }
+
   if (token) {
     const verification = authService.verifyToken(token);
-    if (verification.success) {
-      user = await databaseService.findUserById(verification.decoded.userId);
-      if (user && user.isActive) {
+    if (!verification.success) {
+      console.log('🟥 JWT verification failed:', verification.error || verification);
+    } else {
+      // Fred's safeguard: handle both userId and id claims
+      const uid = verification.decoded.userId || verification.decoded.id;
+      user = uid ? await databaseService.findUserById(uid) : null;
+      
+      if (!user) {
+        console.log('🟥 JWT OK but user not found (userId:', uid, ')');
+      } else if (!user.isActive) {
+        console.log('🟥 User inactive:', user.username);
+      } else {
         userId = user.id;
         isGuest = false;
-        console.log(`🔐 Authenticated user connected: ${user.username}`);
+        console.log(`🔐 WS authenticated as ${user.username} (${user.id})`);
       }
     }
   }

@@ -14,9 +14,17 @@ class GameService {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.playerId = null; // Store player ID
+    
+    // Fred's Fix: Reconnect WS after token refresh
+    if (typeof window !== 'undefined') {
+      window.addEventListener('authStateChanged', () => {
+        console.log('🔄 Auth state changed, reconnecting WebSocket...');
+        this.reconnect();
+      });
+    }
   }
 
-  // Connect to backend WebSocket
+  // Connect to backend WebSocket  
   connect() {
     // Prevent multiple connections
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -26,19 +34,24 @@ class GameService {
     
     console.log('🔌 Connecting to game backend...');
     
-    // Get auth token for authenticated connection
-    const token = authService.getAuthToken();
+    // Fred's Fix: Get auth token for authenticated connection
+    const token = authService.getToken();
     const baseWsUrl = import.meta.env.VITE_API_BASE_URL?.replace('https://', 'wss://').replace('/api', '') || 'wss://aviator-game-production.up.railway.app';
     const wsPath = '/ws';  // WebSocket path
-    const wsUrl = `${baseWsUrl}${wsPath}`;
+    
+    // Fred's belt-and-suspenders: both query param AND subprotocol
+    const wsUrl = token ? `${baseWsUrl}${wsPath}?token=${encodeURIComponent(token)}` : `${baseWsUrl}${wsPath}`;
+    const protocols = token ? [`bearer.${token}`] : [];
     
     if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
       console.log('🔌 WebSocket URL:', wsUrl.replace(/token=[^&]*/, 'token=***'));
+      console.log('🎯 Auth token:', token ? 'Present' : 'Missing');  
+      console.log('📡 Protocols:', protocols.length > 0 ? ['bearer.***'] : 'None');
     }
     
     try {
-      // Prefer subprotocol for token to avoid very long query strings
-      this.ws = token ? new WebSocket(wsUrl, [`auth`, `bearer.${token}`]) : new WebSocket(wsUrl);
+      // Fred's approach: send token via both query param and subprotocol
+      this.ws = new WebSocket(wsUrl, protocols);
       
       this.ws.onopen = () => {
         if (import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true') {
@@ -213,7 +226,20 @@ class GameService {
   disconnect() {
     if (this.ws) {
       this.ws.close();
+      this.isConnected = false;
     }
+  }
+  
+  // Fred's Fix: Reconnect with fresh token
+  reconnect() {
+    console.log('🔄 Reconnecting WebSocket with fresh token...');
+    try {
+      this.disconnect();
+    } catch (e) {
+      console.warn('Disconnect error during reconnect:', e);
+    }
+    // Small delay to ensure clean disconnect
+    setTimeout(() => this.connect(), 100);
   }
 }
 
