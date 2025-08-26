@@ -224,8 +224,18 @@ let gameState = {
 // AUTHENTICATION ROUTES
 // =============================================================================
 
-// Telegram authentication for players
-app.post('/api/auth/telegram', [
+// TEST ROUTE - Debug route registration
+app.get('/api/test', (req, res) => {
+  res.json({ success: true, message: 'Test route working!' });
+});
+
+// SIMPLE TELEGRAM ROUTE - Testing without validation middleware
+app.post('/api/auth/telegram', async (req, res) => {
+  res.json({ success: true, message: 'Simple route working!', body: req.body });
+});
+
+// COMPLEX TELEGRAM ROUTE - With full validation (backup)
+app.post('/api/auth/telegram-full', [
   body('telegramUser').isObject(),
   body('telegramUser.id').isNumeric(),
   body('telegramUser.first_name').notEmpty().trim().escape(),
