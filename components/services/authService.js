@@ -18,12 +18,21 @@ class AuthService {
 
       console.log(`🌐 Sending request to: ${this.baseURL}/auth/telegram`);
       console.log('🌐 Request payload:', JSON.stringify({ telegramUser, startParam }, null, 2));
+      console.log('🌐 User agent:', navigator.userAgent);
+      console.log('🌐 Request headers:', {
+        'Content-Type': 'application/json',
+        'X-Device-Id': deviceId
+      });
       
       const res = await fetch(`${this.baseURL}/auth/telegram`, {
         method: 'POST',
+        mode: 'cors', // Explicitly set CORS mode
+        cache: 'no-cache',
+        credentials: 'omit', // Try without credentials first
         headers: { 
           'Content-Type': 'application/json',
-          'X-Device-Id': deviceId
+          'X-Device-Id': deviceId,
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ telegramUser, startParam })
       });
@@ -39,11 +48,68 @@ class AuthService {
       }
       return { success: false, error: data?.error || `HTTP ${res.status}`, status: res.status, data };
     } catch (e) {
-      console.error('🚨 Network error details:', e);
-      console.error('🚨 Error name:', e.name);
-      console.error('🚨 Error message:', e.message);
-      return { success: false, error: 'Network error', details: e.message };
+      console.error('🚨 Fetch failed, trying XMLHttpRequest fallback...');
+      console.error('🚨 Original error:', e.name, e.message);
+      
+      // Fallback to XMLHttpRequest for Telegram WebView compatibility
+      try {
+        const result = await this.authenticateWithTelegramXHR(telegramUser, startParam, deviceId);
+        return result;
+      } catch (xhrError) {
+        console.error('🚨 XMLHttpRequest also failed:', xhrError);
+        return { success: false, error: 'Network error', details: `Fetch: ${e.message}, XHR: ${xhrError.message}` };
+      }
     }
+  }
+
+  // XMLHttpRequest fallback for Telegram WebView compatibility
+  async authenticateWithTelegramXHR(telegramUser, startParam, deviceId) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${this.baseURL}/auth/telegram`, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('X-Device-Id', deviceId);
+      xhr.setRequestHeader('Accept', 'application/json');
+      
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === 4) {
+          try {
+            console.log(`🔄 XHR Response: ${xhr.status} ${xhr.statusText}`);
+            
+            if (xhr.status === 200) {
+              const data = JSON.parse(xhr.responseText);
+              console.log('🔄 XHR Success:', data);
+              
+              if (data.success) {
+                this.applySession(data.token, data.refreshToken, data.user);
+                window.dispatchEvent(new Event('authStateChanged'));
+                resolve({ success: true, user: this.user, referralMessage: data.referralMessage });
+              } else {
+                resolve({ success: false, error: data.error });
+              }
+            } else {
+              resolve({ success: false, error: `HTTP ${xhr.status}` });
+            }
+          } catch (e) {
+            reject(new Error(`XHR Parse error: ${e.message}`));
+          }
+        }
+      };
+      
+      xhr.onerror = () => {
+        reject(new Error('XHR Network error'));
+      };
+      
+      xhr.ontimeout = () => {
+        reject(new Error('XHR Timeout'));
+      };
+      
+      xhr.timeout = 30000; // 30 second timeout
+      
+      const payload = JSON.stringify({ telegramUser, startParam });
+      console.log('🔄 Sending XHR request...');
+      xhr.send(payload);
+    });
   }
 
   async adminLogin(usernameOrEmail, password) {

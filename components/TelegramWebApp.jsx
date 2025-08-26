@@ -47,6 +47,10 @@ const TelegramWebApp = ({ children }) => {
         if (result.status) {
           addDebugLog(`🌐 HTTP status: ${result.status}`);
         }
+        // Check if XMLHttpRequest fallback was used
+        if (result.details && result.details.includes('XHR:')) {
+          addDebugLog(`🔄 XMLHttpRequest fallback attempted!`);
+        }
         addDebugLog(`🔍 Full result: ${JSON.stringify(result)}`);
       }
       

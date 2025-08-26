@@ -75,9 +75,21 @@ const allowedOrigins = isProduction
 const corsMiddleware = cors({
   origin: (origin, callback) => {
     try {
-      if (!origin) return callback(null, true); // allow non-browser clients
+      // Allow no origin (mobile apps, Postman, curl, Telegram WebView)
+      if (!origin) return callback(null, true);
+      
+      // Allow Telegram WebView origins (they often contain 'telegram')
+      if (origin && origin.includes('telegram')) {
+        console.log(`✅ CORS allowing Telegram origin: ${origin}`);
+        return callback(null, true);
+      }
+      
+      // Development mode: allow all
       if (!isProduction) return callback(null, true);
+      
+      // Production: check allowlist
       if (allowedOrigins.includes(origin)) return callback(null, true);
+      
       console.log(`❌ CORS blocked origin: ${origin}`);
       console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
       return callback(new Error('CORS not allowed for this origin'));
@@ -88,7 +100,15 @@ const corsMiddleware = cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Sec-WebSocket-Protocol'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'Sec-WebSocket-Protocol',
+    'X-Device-Id',
+    'User-Agent',
+    'Accept',
+    'Accept-Language'
+  ],
   preflightContinue: false,
   optionsSuccessStatus: 204
 });
