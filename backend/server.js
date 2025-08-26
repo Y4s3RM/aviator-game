@@ -1439,9 +1439,10 @@ wss.on('connection', async (ws, req) => {
       user = uid ? await databaseService.findUserById(uid) : null;
       
       if (!user) {
-        console.log('🟥 JWT OK but user not found (userId:', uid, ')');
+        console.log('🟥 JWT OK but user not found (userId:', uid, ') - stale token, continuing as guest');
+        // Don't error out - just continue as guest with stale JWT
       } else if (!user.isActive) {
-        console.log('🟥 User inactive:', user.username);
+        console.log('🟥 User inactive:', user.username, '- continuing as guest');
       } else {
         userId = user.id;
         isGuest = false;

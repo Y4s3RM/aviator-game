@@ -112,6 +112,32 @@ class AuthService {
     }
   }
 
+  // Fix for stale JWT tokens - check if current token is for non-existent user
+  async validateCurrentToken() {
+    if (!this.token) return { valid: false, reason: 'No token' };
+    
+    try {
+      // Try to get current user profile to validate token
+      const res = await fetch(`${this.baseURL}/auth/profile`, {
+        headers: { 'Authorization': `Bearer ${this.token}` }
+      });
+      
+      if (res.status === 404 || (res.status === 401 && res.statusText.includes('User not found'))) {
+        console.log('🧹 Stale JWT detected - user no longer exists, clearing token');
+        await this.logout();
+        return { valid: false, reason: 'User not found - stale token cleared' };
+      }
+      
+      if (!res.ok) {
+        return { valid: false, reason: `HTTP ${res.status}` };
+      }
+      
+      return { valid: true, reason: 'Token valid' };
+    } catch (error) {
+      return { valid: false, reason: 'Network error' };
+    }
+  }
+
   isAuthenticated() {
     return !!this.token && !!this.user;
   }

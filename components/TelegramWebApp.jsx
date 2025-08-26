@@ -65,8 +65,22 @@ const TelegramWebApp = ({ children }) => {
         const startParam = webApp.initDataUnsafe.start_param || null;
         setUser(telegramUser);
         
-        // Automatically authenticate with backend
-        authenticateUser(telegramUser, startParam);
+        // Check for stale JWT before authenticating
+        if (authService.isAuthenticated()) {
+          console.log('🔍 Checking if existing JWT token is still valid...');
+          authService.validateCurrentToken().then((validation) => {
+            if (!validation.valid) {
+              console.log('🧹 Stale token detected and cleared, re-authenticating...');
+              authenticateUser(telegramUser, startParam);
+            } else {
+              console.log('✅ Existing token is valid');
+              setIsAuthenticated(true);
+            }
+          });
+        } else {
+          // No existing token, authenticate normally
+          authenticateUser(telegramUser, startParam);
+        }
       }
 
       // Get theme parameters
