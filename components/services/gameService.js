@@ -82,6 +82,20 @@ class GameService {
             console.log('📨 Parsed message:', message);
           }
           
+          // Fred's Stale Token Handler - proactive authentication recovery
+          if (message?.type === 'auth_error' && message?.data?.reason === 'STALE_TOKEN') {
+            console.log('🧹 Server detected stale token, triggering re-authentication...');
+            // Hard path: nuke and re-auth via Telegram
+            try {
+              authService.clearTokens();
+              // Tell the app to reauth:
+              window.dispatchEvent(new Event('auth:stale'));
+            } catch (error) {
+              console.error('❌ Error handling stale token:', error);
+            }
+            return; // Don't process this message further
+          }
+          
           // Save player/user ID when we receive it from backend
           if (message.type === 'connected' && message.data?.userId) {
             this.playerId = message.data.userId;

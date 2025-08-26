@@ -2,6 +2,15 @@ import React, { useEffect, useState, useCallback } from 'react';
 import authService from './services/authService.js';
 import gameService from './services/gameService.js';
 
+// Fred's Build Tag System - capture version from URL or Telegram params  
+const getBuildTag = () => {
+  const qsV = new URLSearchParams(location.search).get('v');
+  const tgV = window.Telegram?.WebApp?.initDataUnsafe?.start_param || null;
+  // support "ref_XXXX__v_YYYY" combined param
+  if (tgV && tgV.includes('__v_')) return tgV.split('__v_')[1];
+  return qsV || tgV || null;
+};
+
 // Telegram WebApp integration component
 const TelegramWebApp = ({ children }) => {
   const [tg, setTg] = useState(null);
@@ -58,6 +67,20 @@ const TelegramWebApp = ({ children }) => {
       // Initialize the app
       webApp.ready();
       webApp.expand();
+
+      // Fred's One-time hard reload for new builds
+      try {
+        const buildTag = getBuildTag();
+        if (buildTag) {
+          const key = 'aviator_reload_for_' + buildTag;
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1');
+            // bumps query to bust HTML cache once
+            location.replace(location.pathname + '?v=' + encodeURIComponent(buildTag) + '&r=' + Date.now());
+            return; // stop init; new load will continue
+          }
+        }
+      } catch (_) {}
       
       // Get user data and authenticate - Safe for older browsers
       if (webApp.initDataUnsafe && webApp.initDataUnsafe.user) {
@@ -65,22 +88,24 @@ const TelegramWebApp = ({ children }) => {
         const startParam = webApp.initDataUnsafe.start_param || null;
         setUser(telegramUser);
         
-        // Check for stale JWT before authenticating
-        if (authService.isAuthenticated()) {
-          console.log('🔍 Checking if existing JWT token is still valid...');
-          authService.validateCurrentToken().then((validation) => {
+        // Fred's Token Freshness Guard - comprehensive authentication flow
+        const ensureFreshAuth = async () => {
+          if (authService.isAuthenticated()) {
+            const validation = await authService.validateCurrentToken(); // calls /api/auth/profile OR /refresh
             if (!validation.valid) {
-              console.log('🧹 Stale token detected and cleared, re-authenticating...');
-              authenticateUser(telegramUser, startParam);
+              authService.clearTokens();
+              await authenticateUser(telegramUser, startParam); // gets fresh JWT
+              gameService.reconnect(); // make WS use the new token
             } else {
-              console.log('✅ Existing token is valid');
               setIsAuthenticated(true);
+              // ensure WS uses the current token on first connect
+              gameService.reconnect();
             }
-          });
-        } else {
-          // No existing token, authenticate normally
-          authenticateUser(telegramUser, startParam);
-        }
+          } else {
+            await authenticateUser(telegramUser, startParam);
+          }
+        };
+        ensureFreshAuth();
       }
 
       // Get theme parameters
@@ -112,6 +137,19 @@ const TelegramWebApp = ({ children }) => {
       console.log('⚠️ Running outside Telegram - using fallback mode');
       setIsReady(true);
     }
+  }, []);
+
+  // Fred's Auth Stale Event Listener - handles real-time token recovery
+  useEffect(() => {
+    const onStale = () => {
+      // Re-run Telegram auth using current initDataUnsafe
+      const webApp = window.Telegram?.WebApp;
+      const u = webApp?.initDataUnsafe?.user;
+      const sp = webApp?.initDataUnsafe?.start_param || null;
+      if (u) authenticateUser(u, sp);
+    };
+    window.addEventListener('auth:stale', onStale);
+    return () => window.removeEventListener('auth:stale', onStale);
   }, []);
 
   const applyTelegramTheme = (theme) => {

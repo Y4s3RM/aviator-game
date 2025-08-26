@@ -112,7 +112,7 @@ class AuthService {
     }
   }
 
-  // Fix for stale JWT tokens - check if current token is for non-existent user
+  // Fred's graceful token validation with automatic refresh
   async validateCurrentToken() {
     if (!this.token) return { valid: false, reason: 'No token' };
     
@@ -122,17 +122,33 @@ class AuthService {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       
+      if (res.ok) return { valid: true, reason: 'Token valid' };
+      
       if (res.status === 404 || (res.status === 401 && res.statusText.includes('User not found'))) {
         console.log('🧹 Stale JWT detected - user no longer exists, clearing token');
         await this.logout();
         return { valid: false, reason: 'User not found - stale token cleared' };
       }
       
-      if (!res.ok) {
-        return { valid: false, reason: `HTTP ${res.status}` };
+      // Fred's graceful refresh chain for expired tokens
+      if (res.status === 401 || res.status === 403) {
+        const rt = this.refreshToken;
+        if (!rt) return { valid: false, reason: 'Token expired, no refresh token' };
+        
+        console.log('🔄 Token expired, attempting refresh...');
+        const refreshResult = await this.refreshAccessToken();
+        if (!refreshResult.success) {
+          console.log('❌ Token refresh failed, clearing session');
+          await this.logout();
+          return { valid: false, reason: 'Token refresh failed' };
+        }
+        
+        console.log('✅ Token refreshed successfully');
+        window.dispatchEvent(new Event('authStateChanged'));
+        return { valid: true, refreshed: true, reason: 'Token refreshed' };
       }
       
-      return { valid: true, reason: 'Token valid' };
+      return { valid: false, reason: `HTTP ${res.status}` };
     } catch (error) {
       return { valid: false, reason: 'Network error' };
     }
@@ -266,6 +282,11 @@ class AuthService {
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
     }
+  }
+
+  // Fred's API compatibility - alias for clearSession
+  clearTokens() {
+    this.clearSession();
   }
 
   saveUser(user) {

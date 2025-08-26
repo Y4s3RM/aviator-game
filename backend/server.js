@@ -282,26 +282,37 @@ app.post('/api/auth/telegram', [
       return res.status(500).json({ error: 'Failed to generate tokens' });
     }
 
-    // Handle referral attribution if start_param is provided
+    // Fred's combined referral + version parameter parsing
     let referralMessage = null;
-    if (startParam && typeof startParam === 'string' && startParam.startsWith('ref_')) {
-      const refCode = startParam.substring(4); // remove 'ref_' prefix
-      try {
-        const referralResult = await databaseService.attributeReferral({
-          inviteeUserId: user.id,
-          referralCode: refCode,
-          ip: req.ip,
-          deviceId: req.headers['x-device-id'] || null
-        });
-        
-        if (referralResult.success && referralResult.inviteeBonusPaid) {
-          // Update user object to reflect new balance
-          user = await databaseService.findUserById(user.id);
-          referralMessage = `Welcome! You've been referred by ${referralResult.referrerUsername} and received 1,000 points!`;
+    if (startParam && typeof startParam === 'string') {
+      const [maybeRef, maybeV] = startParam.split('__v_');
+      
+      // Handle referral attribution
+      if (maybeRef && maybeRef.startsWith('ref_')) {
+        const refCode = maybeRef.substring(4); // remove 'ref_' prefix
+        try {
+          const referralResult = await databaseService.attributeReferral({
+            inviteeUserId: user.id,
+            referralCode: refCode,
+            ip: req.ip,
+            deviceId: req.headers['x-device-id'] || null
+          });
+          
+          if (referralResult.success && referralResult.inviteeBonusPaid) {
+            // Update user object to reflect new balance
+            user = await databaseService.findUserById(user.id);
+            referralMessage = `Welcome! You've been referred by ${referralResult.referrerUsername} and received 1,000 points!`;
+          }
+        } catch (e) {
+          // Log but don't fail auth if attribution fails
+          console.warn('Referral attribution skipped:', e.message);
         }
-      } catch (e) {
-        // Log but don't fail auth if attribution fails
-        console.warn('Referral attribution skipped:', e.message);
+      }
+      
+      // Fred's version tracking (optional: for logging/telemetry)
+      req.buildTag = maybeV || null;
+      if (req.buildTag) {
+        console.log(`📊 User authenticated with build version: ${req.buildTag}`);
       }
     }
 
@@ -1472,6 +1483,10 @@ wss.on('connection', async (ws, req) => {
         console.log(`🔐 WS authenticated as ${u.username} (${userId})`);
       } else if (!u) {
         console.log(`🟥 JWT OK but user not found (claimedId: ${claimedId}) - continuing as guest`);
+        // Fred's Fix: tell client so it can self-heal
+        try {
+          ws.send(JSON.stringify({ type: 'auth_error', data: { reason: 'STALE_TOKEN' } }));
+        } catch(_) {}
       } else if (!u.isActive) {
         console.log('🟥 User inactive - continuing as guest');
       }
