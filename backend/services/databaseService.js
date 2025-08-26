@@ -728,20 +728,6 @@ class DatabaseService {
         },
         orderBy,
         take: type === 'winRate' ? 100 : limit, // Get more for winRate calculation
-        select: {
-          id: true,
-          username: true,
-          firstName: true,
-          balance: true,
-          totalWon: true,
-          totalWagered: true,
-          totalLost: true,
-          gamesPlayed: true,
-          biggestWin: true,
-          biggestLoss: true,
-          experience: true,
-          level: true
-        },
         include: {
           bets: {
             select: {
