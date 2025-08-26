@@ -20,6 +20,7 @@ const TelegramWebApp = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [debugLogs, setDebugLogs] = useState([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   // Add debug log function
   const addDebugLog = (message) => {
@@ -253,8 +254,36 @@ const TelegramWebApp = ({ children }) => {
       authError,
       authenticateUser 
     }}>
-      {/* Debug Panel - Visible on screen */}
+      {/* Debug Toggle Button */}
       {debugLogs.length > 0 && (
+        <button
+          onClick={() => setShowDebugPanel(!showDebugPanel)}
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            right: 20,
+            width: '50px',
+            height: '50px',
+            borderRadius: '50%',
+            background: showDebugPanel ? '#0f0' : '#333',
+            color: showDebugPanel ? '#000' : '#0f0',
+            border: '2px solid #0f0',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          title={showDebugPanel ? 'Hide Debug Panel' : 'Show Debug Panel'}
+        >
+          🔍
+        </button>
+      )}
+
+      {/* Debug Panel - Toggleable */}
+      {showDebugPanel && debugLogs.length > 0 && (
         <div style={{
           position: 'fixed',
           top: 10,
@@ -271,7 +300,28 @@ const TelegramWebApp = ({ children }) => {
           border: '1px solid #333',
           borderRadius: '5px'
         }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>🔍 DEBUG LOG:</div>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: '5px'
+          }}>
+            <div style={{ fontWeight: 'bold' }}>🔍 DEBUG LOG:</div>
+            <button
+              onClick={() => setShowDebugPanel(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#0f0',
+                cursor: 'pointer',
+                fontSize: '14px',
+                padding: '0 5px'
+              }}
+              title="Close Debug Panel"
+            >
+              ✕
+            </button>
+          </div>
           {debugLogs.map((log, i) => (
             <div key={i} style={{ marginBottom: '2px' }}>{log}</div>
           ))}
