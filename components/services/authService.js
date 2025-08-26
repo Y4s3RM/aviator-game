@@ -154,6 +154,11 @@ class AuthService {
     }
   }
 
+  // Get current auth token
+  getToken() {
+    return this.token;
+  }
+
   isAuthenticated() {
     return !!this.token && !!this.user;
   }
