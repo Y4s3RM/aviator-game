@@ -16,6 +16,9 @@ class AuthService {
         localStorage.setItem('device_id', deviceId);
       }
 
+      console.log(`🌐 Sending request to: ${this.baseURL}/auth/telegram`);
+      console.log('🌐 Request payload:', JSON.stringify({ telegramUser, startParam }, null, 2));
+      
       const res = await fetch(`${this.baseURL}/auth/telegram`, {
         method: 'POST',
         headers: { 
@@ -36,7 +39,10 @@ class AuthService {
       }
       return { success: false, error: data?.error || `HTTP ${res.status}`, status: res.status, data };
     } catch (e) {
-      return { success: false, error: 'Network error' };
+      console.error('🚨 Network error details:', e);
+      console.error('🚨 Error name:', e.name);
+      console.error('🚨 Error message:', e.message);
+      return { success: false, error: 'Network error', details: e.message };
     }
   }
 

@@ -41,7 +41,13 @@ const TelegramWebApp = ({ children }) => {
       
       if (!result.success) {
         addDebugLog(`❌ Auth error: ${result.error || 'Unknown error'}`);
-        addDebugLog(`🔍 Auth details: ${JSON.stringify(result)}`);
+        if (result.details) {
+          addDebugLog(`🔍 Error details: ${result.details}`);
+        }
+        if (result.status) {
+          addDebugLog(`🌐 HTTP status: ${result.status}`);
+        }
+        addDebugLog(`🔍 Full result: ${JSON.stringify(result)}`);
       }
       
       if (result.success) {
