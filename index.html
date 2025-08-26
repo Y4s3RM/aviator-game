@@ -35,6 +35,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
+    <!-- Browser Compatibility Polyfills - LOAD FIRST -->
+    <script src="/polyfills.js"></script>
+    
     <!-- Telegram WebApp Script -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
@@ -97,6 +100,45 @@
       @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
+      }
+
+      /* Fallback styles for browsers without CSS Custom Properties */
+      .no-css-vars {
+        background-color: #111827 !important;
+        color: #ffffff !important;
+      }
+      
+      .no-css-vars .bg-gray-900 { background-color: #111827 !important; }
+      .no-css-vars .bg-gray-800 { background-color: #1f2937 !important; }
+      .no-css-vars .bg-gray-700 { background-color: #374151 !important; }
+      .no-css-vars .bg-blue-600 { background-color: #2563eb !important; }
+      .no-css-vars .text-white { color: #ffffff !important; }
+      .no-css-vars .text-gray-400 { color: #9ca3af !important; }
+      .no-css-vars .border-gray-700 { border-color: #374151 !important; }
+      
+      /* Flexbox fallback for very old browsers */
+      .flex-fallback {
+        display: -webkit-box;
+        display: -moz-box;
+        display: -ms-flexbox;
+        display: -webkit-flex;
+        display: flex;
+      }
+      
+      .flex-fallback.justify-center {
+        -webkit-box-pack: center;
+        -moz-box-pack: center;
+        -ms-flex-pack: center;
+        -webkit-justify-content: center;
+        justify-content: center;
+      }
+      
+      .flex-fallback.items-center {
+        -webkit-box-align: center;
+        -moz-box-align: center;
+        -ms-flex-align: center;
+        -webkit-align-items: center;
+        align-items: center;
       }
     </style>
   </head>

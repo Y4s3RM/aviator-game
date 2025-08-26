@@ -24,9 +24,13 @@ const TelegramWebApp = ({ children }) => {
         setAuthError(null);
         console.log('✅ Authentication successful');
         
-        // Show referral message if present
+        // Show referral message if present - Safe for older browsers
         if (result.referralMessage) {
-          window.Telegram?.WebApp?.showAlert(result.referralMessage);
+          if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
+            window.Telegram.WebApp.showAlert(result.referralMessage);
+          } else {
+            alert(result.referralMessage);
+          }
         }
       } else {
         setIsAuthenticated(false);
@@ -41,8 +45,8 @@ const TelegramWebApp = ({ children }) => {
   };
 
   useEffect(() => {
-    // Initialize Telegram WebApp
-    if (window.Telegram?.WebApp) {
+    // Initialize Telegram WebApp - Safe for older browsers
+    if (window.Telegram && window.Telegram.WebApp) {
       const webApp = window.Telegram.WebApp;
       setTg(webApp);
 
@@ -50,10 +54,10 @@ const TelegramWebApp = ({ children }) => {
       webApp.ready();
       webApp.expand();
       
-      // Get user data and authenticate
-      if (webApp.initDataUnsafe?.user) {
+      // Get user data and authenticate - Safe for older browsers
+      if (webApp.initDataUnsafe && webApp.initDataUnsafe.user) {
         const telegramUser = webApp.initDataUnsafe.user;
-        const startParam = webApp.initDataUnsafe?.start_param || null;
+        const startParam = webApp.initDataUnsafe.start_param || null;
         setUser(telegramUser);
         
         // Automatically authenticate with backend
@@ -79,7 +83,7 @@ const TelegramWebApp = ({ children }) => {
       setIsReady(true);
 
       console.log('🤖 Telegram WebApp initialized:', {
-        user: webApp.initDataUnsafe?.user,
+        user: webApp.initDataUnsafe && webApp.initDataUnsafe.user,
         platform: webApp.platform,
         version: webApp.version,
         colorScheme: webApp.colorScheme
@@ -124,8 +128,8 @@ const TelegramWebApp = ({ children }) => {
       root.style.setProperty('--tw-bg-gray-800', theme.secondary_bg_color);
     }
 
-    // Apply theme class to body
-    document.body.className = `telegram-theme ${tg?.colorScheme || 'dark'}`;
+    // Apply theme class to body - Safe for older browsers
+    document.body.className = 'telegram-theme ' + (tg && tg.colorScheme ? tg.colorScheme : 'dark');
   };
 
   return (
@@ -168,7 +172,7 @@ export const useTelegramWebApp = () => {
   }, [context.tg]);
 
   const hapticFeedback = useCallback((type = 'impact', style = 'medium') => {
-    if (context.tg?.HapticFeedback) {
+    if (context.tg && context.tg.HapticFeedback) {
       switch (type) {
         case 'impact':
           context.tg.HapticFeedback.impactOccurred(style); // light, medium, heavy
@@ -195,7 +199,7 @@ export const useTelegramWebApp = () => {
   }, [context.tg]);
 
   const setMainButton = useCallback((text, callback, color = null) => {
-    if (context.tg?.MainButton) {
+    if (context.tg && context.tg.MainButton) {
       context.tg.MainButton.setText(text);
       if (color) {
         context.tg.MainButton.setParams({ color });
@@ -206,20 +210,20 @@ export const useTelegramWebApp = () => {
   }, [context.tg]);
 
   const hideMainButton = useCallback(() => {
-    if (context.tg?.MainButton) {
+    if (context.tg && context.tg.MainButton) {
       context.tg.MainButton.hide();
     }
   }, [context.tg]);
 
   const setBackButton = useCallback((callback) => {
-    if (context.tg?.BackButton) {
+    if (context.tg && context.tg.BackButton) {
       context.tg.BackButton.onClick(callback);
       context.tg.BackButton.show();
     }
   }, [context.tg]);
 
   const hideBackButton = useCallback(() => {
-    if (context.tg?.BackButton) {
+    if (context.tg && context.tg.BackButton) {
       context.tg.BackButton.hide();
     }
   }, [context.tg]);

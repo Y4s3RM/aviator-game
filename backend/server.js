@@ -1253,7 +1253,7 @@ function startGameLoop() {
       } else {
         broadcastAll();
       }
-    }, 50);
+    }, 200); // Reduced from 50ms to 200ms = 5 updates/sec instead of 20
   }
   async function crash() {
     gameState.state = 'crashed';

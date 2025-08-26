@@ -7,11 +7,13 @@ const FriendsPanel = ({ isOpen, onClose }) => {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   
-  // Get bot username from environment or hardcode
+  // Get bot username and short name from environment or hardcode
   const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'aviador_game_test_bot';
+  const SHORT_NAME = import.meta.env.VITE_TELEGRAM_SHORT_NAME || 'aviador_game_test_bot';
   
-  // Debug: Log bot username to help with troubleshooting
+  // Debug: Log bot info to help with troubleshooting
   console.log('Bot username:', BOT_USERNAME);
+  console.log('Short name:', SHORT_NAME);
 
   const loadReferralStats = async () => {
     if (!authService.isAuthenticated()) {
@@ -53,7 +55,7 @@ const FriendsPanel = ({ isOpen, onClose }) => {
       console.log('No referral code available in stats:', stats);
       return '';
     }
-    const link = `https://t.me/${BOT_USERNAME}/${BOT_USERNAME}?startapp=ref_${stats.referralCode}`;
+    const link = `https://t.me/${BOT_USERNAME}/${SHORT_NAME}?startapp=ref_${stats.referralCode}`;
     console.log('Generated referral link:', link);
     return link;
   };
@@ -72,8 +74,8 @@ const FriendsPanel = ({ isOpen, onClose }) => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
         
-        // Telegram haptic feedback
-        if (window.Telegram?.WebApp?.HapticFeedback) {
+        // Telegram haptic feedback - Safe for older browsers
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
         }
       } else {
@@ -118,20 +120,20 @@ const FriendsPanel = ({ isOpen, onClose }) => {
     }
 
     try {
-      // Try Telegram Web App inline sharing first
-      if (window.Telegram?.WebApp?.switchInlineQuery) {
-        const shareText = `🎮 Join me on Aviator Game! Play the exciting crash game and earn points! ${link}`;
+      // Try Telegram Web App inline sharing first - Safe for older browsers
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.switchInlineQuery) {
+        const shareText = '🎮 Join me on Aviator Game! Play the exciting crash game and earn points! ' + link;
         window.Telegram.WebApp.switchInlineQuery(shareText, ['users', 'groups']);
         
         // Haptic feedback
-        if (window.Telegram?.WebApp?.HapticFeedback) {
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
         }
       } else if (navigator.share) {
         // Try native Web Share API
         navigator.share({
           title: 'Join me on Aviator Game!',
-          text: `Play the exciting Aviator game and earn points! Join using my referral link:`,
+          text: 'Play the exciting Aviator game and earn points! Join using my referral link:',
           url: link
         }).catch(err => {
           console.error('Native share failed:', err);

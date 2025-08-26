@@ -11,14 +11,18 @@ Create a `.env` file in your project root:
 ```env
 # Your Telegram Bot Username (without @)
 VITE_TELEGRAM_BOT_USERNAME=YourBotUsername
+
+# Your Telegram Web App Short Name (set in BotFather)
+VITE_TELEGRAM_SHORT_NAME=YourWebAppShortName
 ```
 
 ### Option 2: Update the Code
 
-Edit `components/FriendsPanel.jsx` line 11:
+Edit `components/FriendsPanel.jsx` lines 11-12:
 
 ```javascript
 const BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'YourBotUsername';
+const SHORT_NAME = import.meta.env.VITE_TELEGRAM_SHORT_NAME || 'YourWebAppShortName';
 ```
 
 ## Referral Rewards Configuration
