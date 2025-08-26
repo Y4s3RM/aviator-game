@@ -44,7 +44,12 @@ app.use(helmet({
       // API returns JSON; block everything by default
       defaultSrc: ["'none'"],
       // Allow API consumers to call us - specify exact origins
-      connectSrc: ["'self'", "wss://aviator-game-production.up.railway.app", "https://aviator-game-production.up.railway.app"],
+      connectSrc: [
+        "'self'", 
+        "wss://aviator-game-production.up.railway.app", 
+        "https://aviator-game-production.up.railway.app",
+        "https://aviator-game-topaz.vercel.app" // NEW: Vercel frontend
+      ],
       // Disallow framing except Telegram (documented hostnames)
       frameAncestors: ["'self'", "https://*.telegram.org"],
       // Basic allowances; API does not serve scripts/styles
@@ -987,6 +992,34 @@ app.get('/api/admin/audit-logs/:targetType/:targetId', requireAdmin, async (req,
 // PUBLIC ROUTES
 // =============================================================================
 
+// Telegram referral tracking (Fred's implementation)
+app.post('/api/referral/track', async (req, res) => {
+  try {
+    const { ref } = req.body || {};
+    if (!ref || typeof ref !== 'string') return res.status(400).json({ success:false, error: 'Invalid ref' });
+
+    // Normalize: expect ref like "ref_<userId>"
+    const m = ref.match(/^ref_(.+)$/);
+    if (!m) return res.status(200).json({ success:true }); // ignore unknown formats quietly
+
+    const inviterId = m[1];
+
+    // Persist a "pending" attribution keyed to device fingerprint / IP+UA combo
+    // A minimal approach:
+    const ua = (req.headers['user-agent'] || '').slice(0,256);
+    const ip = req.ip;
+    
+    // For now, just log the tracking attempt
+    // TODO: Implement databaseService.recordReferralClick({ inviterId, ip, ua });
+    console.log(`📊 Referral tracking: inviter=${inviterId}, ip=${ip}, ua=${ua.slice(0,50)}...`);
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('❌ referral/track error:', e);
+    res.status(500).json({ success:false, error: 'Failed to track referral' });
+  }
+});
+
 // Get recent rounds for fairness verification
 app.get('/api/fairness/recent-rounds', async (req, res) => {
   try {
@@ -1194,6 +1227,10 @@ app.put('/api/player/settings',
 let currentGameRound = null;
 let countdownInterval = null; // Track countdown interval to prevent memory leaks
 
+// NEW: Throttle broadcast cadence (5 Hz)
+const BROADCAST_MS = 200;
+let lastBroadcastAt = 0;
+
 // =============================================================================
 // GAME LOOP
 // =============================================================================
@@ -1243,17 +1280,29 @@ function startGameLoop() {
     }
     
     console.log("✈️ Plane taking off");
-    broadcastAll();
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - gameState.startTime;
-      gameState.multiplier = 1.0 + (elapsed / 3000);
-      if (gameState.multiplier >= gameState.crashPoint) {
-        clearInterval(interval);
-        crash();
-      } else {
+    broadcastAll(true); // immediate edge broadcast
+    
+    const TICK_MS = 50; // logic cadence (kept small for crash accuracy)
+    
+    const tick = () => {
+      const now = Date.now();
+      // Stable formula: no incremental FP drift
+      gameState.multiplier = 1 + (now - gameState.startTime) / 3000;
+      
+      // Throttled broadcast (5 Hz)
+      if (now - lastBroadcastAt >= BROADCAST_MS) {
+        lastBroadcastAt = now;
         broadcastAll();
       }
-    }, 200); // Reduced from 50ms to 200ms = 5 updates/sec instead of 20
+      
+      if (gameState.multiplier >= gameState.crashPoint) {
+        // Final edge broadcast just before crash
+        broadcastAll(true);
+        return crash();
+      }
+      setTimeout(tick, TICK_MS);
+    };
+    setTimeout(tick, TICK_MS);
   }
   async function crash() {
     gameState.state = 'crashed';
@@ -1310,39 +1359,41 @@ function heartbeat() {
   this.isAlive = true; 
 }
 
-function broadcastAll() {
-  // Optimize by stringifying common data once
-  const commonFrame = JSON.stringify({
+function broadcastAll(force = false) {
+  const frame = {
     type: 'gameState',
     data: {
       state: gameState.state,
       multiplier: gameState.multiplier,
       countdown: gameState.countdown,
       playersOnline: gameState.players.size,
-      crashHistory: gameState.crashHistory
+      crashHistory: gameState.crashHistory,
+      serverTime: Date.now(), // NEW: clients use this to interpolate
     }
-  });
-  
-  // send each player *their own state* (so we can highlight their bet/cashout)
+  };
+  const commonFrame = JSON.stringify(frame);
+
   for (const [userId, p] of gameState.players.entries()) {
     if (p.ws.readyState !== WebSocket.OPEN) continue;
+
+    // NEW: backpressure protection — skip non-forced frames when buffer is big
+    if (!force && p.ws.bufferedAmount > 128 * 1024) {
+      // Optional: once per window, warn the client they're falling behind
+      continue;
+    }
+
     const personalBet = gameState.activeBets.get(userId);
-    
-    // Get balance from user account or guest balance
     const balance = p.isGuest ? p.guestBalance : p.user.balance;
-    
-    // Send common frame first
+
     p.ws.send(commonFrame);
-    
-    // Then send personal overlay data
     p.ws.send(JSON.stringify({
       type: 'playerOverlay',
       data: {
         hasActiveBet: !!personalBet,
-        activeBetAmount: personalBet?.amount || 0,
-        cashedOut: personalBet?.cashedOut || false,
-        cashedOutMultiplier: personalBet?.cashedOutMultiplier || 0,
-        balance: balance,
+        activeBetAmount: personalBet && personalBet.amount || 0,
+        cashedOut: personalBet && personalBet.cashedOut || false,
+        cashedOutMultiplier: personalBet && personalBet.cashedOutMultiplier || 0,
+        balance,
         isAuthenticated: !p.isGuest,
         user: p.isGuest ? null : p.user
       }

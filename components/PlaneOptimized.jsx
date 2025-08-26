@@ -1,71 +1,61 @@
-// 🚀 Optimized Plane Component - High Performance!
-// Uses direct DOM manipulation instead of React re-renders
-// Smooth 60fps animations without performance impact
+// 🚀 Fred's Professional-Grade Plane Component
+// Uses his animation hook for butter-smooth 60fps performance
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
+import useOptimizedAnimation from './hooks/useOptimizedAnimation.js';
 
-const PlaneOptimized = ({ gameState, multiplier, countdown, planeElementRef }) => {
-  const containerRef = useRef(null);
-  const exhaustRef = useRef(null);
-  const warmupRef = useRef(null);
-  const [initialRender, setInitialRender] = useState(true);
-  
-  // Initialize plane position only once
-  useEffect(() => {
-    if (planeElementRef?.current && initialRender) {
-      // Set initial position
-      const element = planeElementRef.current;
-      element.style.transform = 'translate(20vw, 75vh) rotate(0deg)';
-      element.style.transition = 'none';
-      element.style.willChange = 'transform';
-      setInitialRender(false);
-    }
-  }, [planeElementRef, initialRender]);
-  
-  // Update exhaust and warmup effects (these can use React since they're less frequent)
-  useEffect(() => {
-    if (!exhaustRef.current || !warmupRef.current) return;
-    
-    const exhaust = exhaustRef.current;
-    const warmup = warmupRef.current;
-    
-    if (gameState === 'running') {
-      // Show exhaust trail
-      exhaust.style.display = 'block';
-      exhaust.style.width = `${Math.min(multiplier * 4 + 8, 28)}px`;
-      exhaust.style.opacity = Math.min(multiplier / 3, 1);
-      exhaust.style.boxShadow = `0 0 ${Math.min(multiplier * 2, 8)}px rgba(255, 69, 0, 0.6)`;
+export default function PlaneOptimized({ wsState, gameState, lastServerTick }) {
+  const planeRef = useRef(null);
+
+  const { updateServerFrame, setCrashed } = useOptimizedAnimation({
+    onApply: (mult) => {
+      // Light DOM write: GPU-accelerated transform
+      if (!planeRef.current) return;
       
-      // Hide warmup
-      warmup.style.display = 'none';
-    } else if (gameState === 'betting' && countdown > 0 && countdown <= 3) {
-      // Show warmup effect
-      warmup.style.display = 'block';
-      warmup.style.opacity = Math.max(0.4, (3 - countdown) / 3);
+      let x = 20, y = 75, rotation = 0;
       
-      // Hide exhaust
-      exhaust.style.display = 'none';
-    } else {
-      // Hide both effects
-      exhaust.style.display = 'none';
-      warmup.style.display = 'none';
+      if (gameState === 'betting') {
+        x = 20; y = 75; rotation = 0;
+      } else if (gameState === 'running') {
+        const t = Math.min(mult / 5, 1);
+        x = 20 + t * 50 + Math.sin(Date.now() / 300) * 2;
+        y = 75 - Math.pow(t, 0.7) * 50;
+        rotation = 2 - (t * 12);
+        
+        // Mobile bounds
+        const isMobile = window.innerWidth < 640;
+        const maxX = isMobile ? 80 : 85;
+        const minY = isMobile ? 20 : 15;
+        x = Math.min(x, maxX);
+        y = Math.max(y, minY);
+      } else if (gameState === 'crashed') {
+        x = 110; y = 5; rotation = -15;
+      }
+      
+      // Apply transform directly to DOM (GPU accelerated)
+      planeRef.current.style.transform = `translate(${x}vw, ${y}vh) rotate(${rotation}deg)`;
+      planeRef.current.style.willChange = 'transform';
     }
-  }, [gameState, multiplier, countdown]);
-  
+  });
+
+  // Feed server frames to the animator
+  useEffect(() => {
+    if (!lastServerTick) return;
+    const { serverTime, multiplier, state } = lastServerTick;
+    updateServerFrame(serverTime, multiplier);
+    if (state === 'crashed') setCrashed(multiplier);
+  }, [lastServerTick, updateServerFrame, setCrashed]);
+
   return (
-    <div 
-      ref={containerRef}
-      className="absolute inset-0 pointer-events-none"
-      style={{ zIndex: 10 }}
-    >
-      {/* Optimized Plane - Position updated via direct DOM manipulation */}
+    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
       <div
-        ref={planeElementRef}
+        ref={planeRef}
         className="absolute w-12 h-8 flex items-center justify-center"
-        style={{
+        style={{ 
           transform: 'translate(20vw, 75vh) rotate(0deg)',
-          transition: gameState === 'crashed' ? 'transform 0.5s ease-in' : 'none',
+          transition: 'none'
         }}
+        aria-label="plane"
       >
         {/* Plane SVG */}
         <svg viewBox="0 0 48 32" className="w-full h-full">
@@ -91,40 +81,7 @@ const PlaneOptimized = ({ gameState, multiplier, countdown, planeElementRef }) =
           <circle cx="38" cy="16" r="2" fill="#60a5fa" />
           <circle cx="38" cy="16" r="1" fill="#93c5fd" opacity="0.8" />
         </svg>
-
-        {/* Exhaust Trail - Updated via useEffect for better performance */}
-        <div 
-          ref={exhaustRef}
-          className="absolute -left-6 top-1/2 -translate-y-1/2"
-          style={{ display: 'none' }}
-        >
-          <div 
-            className="h-1 bg-gradient-to-r from-orange-500 via-red-500 to-transparent rounded-full animate-pulse"
-          />
-          {/* Secondary exhaust for high multipliers */}
-          <div 
-            className="absolute top-0 h-0.5 bg-gradient-to-r from-yellow-400 via-orange-400 to-transparent rounded-full animate-pulse"
-            style={{ left: '2px', top: '1px' }}
-          />
-        </div>
-
-        {/* Warmup Effect - Updated via useEffect */}
-        <div 
-          ref={warmupRef}
-          className="absolute -left-4 top-1/2 -translate-y-1/2"
-          style={{ display: 'none' }}
-        >
-          <div 
-            className="w-4 h-1 bg-gradient-to-r from-blue-500 via-blue-400 to-transparent rounded-full animate-pulse"
-            style={{ 
-              animationDuration: '0.8s',
-              boxShadow: '0 0 4px rgba(59, 130, 246, 0.5)'
-            }}
-          />
-        </div>
       </div>
     </div>
   );
-};
-
-export default PlaneOptimized;
+}

@@ -1,90 +1,58 @@
-// 🚀 Optimized MultiplierDisplay - High Performance!
-// Uses direct DOM manipulation for multiplier updates
-// React only renders static elements, no re-renders during animation
+// 🚀 Fred's Professional-Grade MultiplierDisplay
+// Uses his animation hook for butter-smooth updates
 
 import React, { useEffect, useRef } from 'react';
+import useOptimizedAnimation from './hooks/useOptimizedAnimation.js';
 
-const MultiplierDisplayOptimized = ({ gameState, countdown, multiplierElementRef, serverMultiplier }) => {
-  const containerRef = useRef(null);
-  const subtitleRef = useRef(null);
-  
-  // Update subtitle and static elements when game state changes (infrequent)
-  useEffect(() => {
-    if (!subtitleRef.current) return;
-    
-    const subtitle = subtitleRef.current;
-    
-    if (gameState === 'betting') {
-      if (countdown > 0) {
-        subtitle.innerHTML = `
-          <div class="text-3xl font-bold text-yellow-400 animate-pulse">
-            ${countdown}
-          </div>
-          <div class="text-sm text-gray-400 font-medium">
-            Starting in...
-          </div>
-        `;
-      } else {
-        subtitle.innerHTML = `
-          <div class="text-gray-400 text-sm font-medium">
-            Place your bets now!
-          </div>
-        `;
-      }
-      subtitle.style.display = 'block';
-    } else if (gameState === 'running') {
-      subtitle.innerHTML = `
-        <div class="text-gray-300 text-sm font-medium animate-pulse">
-          Flying... Cash out before it crashes!
-        </div>
-      `;
-      subtitle.style.display = 'block';
-    } else if (gameState === 'crashed') {
-      subtitle.innerHTML = `
-        <div class="text-red-400 text-sm font-bold">
-          Better luck next time!
-        </div>
-      `;
-      subtitle.style.display = 'block';
-    } else {
-      subtitle.style.display = 'none';
-    }
-  }, [gameState, countdown]);
-  
-  // Initialize multiplier display
-  useEffect(() => {
-    if (!multiplierElementRef?.current) return;
-    
-    const element = multiplierElementRef.current;
-    element.className = `
-      text-6xl md:text-7xl font-black font-mono tracking-wider
-      transition-colors duration-300
-      ${gameState === 'running' ? 'animate-pulse' : ''}
-      ${gameState === 'crashed' ? 'animate-bounce' : ''}
-    `;
-    
-    // Set initial content
-    if (gameState === 'crashed') {
-      element.textContent = 'FLEW AWAY!';
-      element.classList.add('text-red-400', 'drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]');
-    } else {
-      element.textContent = `${serverMultiplier.toFixed(2)}x`;
-      element.classList.add('text-green-400', 'drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]');
-    }
-  }, [multiplierElementRef, gameState, serverMultiplier]);
-  
-  return (
-    <div ref={containerRef} className="text-center">
-      {/* Multiplier Display - Content updated via direct DOM manipulation */}
-      <div 
-        ref={multiplierElementRef}
-        className="text-6xl md:text-7xl font-black font-mono tracking-wider text-green-400 drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]"
-      >
-        {gameState === 'crashed' ? 'FLEW AWAY!' : `${serverMultiplier.toFixed(2)}x`}
-      </div>
+export default function MultiplierDisplayOptimized({ lastServerTick, gameState, countdown }) {
+  const spanRef = useRef(null);
+  const { updateServerFrame, setCrashed } = useOptimizedAnimation({
+    onApply: (mult) => {
+      if (!spanRef.current) return;
       
-      {/* Subtitle - Updated via useEffect for better performance */}
-      <div ref={subtitleRef} className="mt-4 space-y-2">
+      if (gameState === 'crashed') {
+        spanRef.current.textContent = 'FLEW AWAY!';
+        spanRef.current.className = 'text-6xl md:text-7xl font-black font-mono tracking-wider text-red-400 drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-bounce';
+      } else {
+        spanRef.current.textContent = mult.toFixed(2) + 'x';
+        
+        // Update colors based on multiplier
+        let colorClass, glowClass;
+        if (mult >= 10) {
+          colorClass = 'text-yellow-400';
+          glowClass = 'drop-shadow-[0_0_20px_rgba(251,191,36,0.8)]';
+        } else if (mult >= 5) {
+          colorClass = 'text-purple-400';
+          glowClass = 'drop-shadow-[0_0_20px_rgba(168,85,247,0.8)]';
+        } else if (mult >= 2) {
+          colorClass = 'text-blue-400';
+          glowClass = 'drop-shadow-[0_0_20px_rgba(59,130,246,0.8)]';
+        } else {
+          colorClass = 'text-green-400';
+          glowClass = 'drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]';
+        }
+        
+        const pulseClass = gameState === 'running' ? 'animate-pulse' : '';
+        spanRef.current.className = `text-6xl md:text-7xl font-black font-mono tracking-wider ${colorClass} ${glowClass} ${pulseClass}`;
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (!lastServerTick) return;
+    const { serverTime, multiplier, state } = lastServerTick;
+    updateServerFrame(serverTime, multiplier);
+    if (state === 'crashed') setCrashed(multiplier);
+  }, [lastServerTick, updateServerFrame, setCrashed]);
+
+  return (
+    <div className="text-center">
+      <span ref={spanRef} className="text-6xl md:text-7xl font-black font-mono tracking-wider text-green-400 drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]">
+        1.00x
+      </span>
+      
+      {/* Subtitle - React handles this since it's less frequent */}
+      <div className="mt-4 space-y-2">
         {gameState === 'betting' && countdown > 0 && (
           <div className="text-center">
             <div className="text-3xl font-bold text-yellow-400 animate-pulse">
@@ -116,6 +84,4 @@ const MultiplierDisplayOptimized = ({ gameState, countdown, multiplierElementRef
       </div>
     </div>
   );
-};
-
-export default MultiplierDisplayOptimized;
+}
