@@ -32,10 +32,17 @@ const TelegramWebApp = ({ children }) => {
     try {
       addDebugLog(`🔐 Authenticating: ${telegramUser.username || telegramUser.first_name}`);
       addDebugLog(`📨 Start param: ${startParam || 'NONE'}`);
+      addDebugLog(`📋 Telegram data: id=${telegramUser.id} (${typeof telegramUser.id})`);
+      addDebugLog(`📋 First name: "${telegramUser.first_name || 'MISSING'}"`);
       addDebugLog('🔍 Calling authService.authenticateWithTelegram...');
       
       const result = await authService.authenticateWithTelegram(telegramUser, startParam);
       addDebugLog(`🔍 Auth result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+      
+      if (!result.success) {
+        addDebugLog(`❌ Auth error: ${result.error || 'Unknown error'}`);
+        addDebugLog(`🔍 Auth details: ${JSON.stringify(result)}`);
+      }
       
       if (result.success) {
         setIsAuthenticated(true);

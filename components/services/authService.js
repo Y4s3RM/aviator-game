@@ -24,13 +24,17 @@ class AuthService {
         },
         body: JSON.stringify({ telegramUser, startParam })
       });
+      
+      console.log(`🌐 Backend response: HTTP ${res.status} ${res.statusText}`);
       const data = await this.safeJson(res);
+      console.log('🌐 Backend data:', data);
+      
       if (res.ok && data?.success) {
         this.applySession(data.token, data.refreshToken, data.user);
         window.dispatchEvent(new Event('authStateChanged'));
         return { success: true, user: this.user, referralMessage: data.referralMessage };
       }
-      return { success: false, error: data?.error || `HTTP ${res.status}` };
+      return { success: false, error: data?.error || `HTTP ${res.status}`, status: res.status, data };
     } catch (e) {
       return { success: false, error: 'Network error' };
     }

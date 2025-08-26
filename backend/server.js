@@ -232,8 +232,11 @@ app.post('/api/auth/telegram', [
   body('startParam').optional().isString().trim()
 ], async (req, res) => {
   try {
+    console.log('🔐 Telegram auth request:', JSON.stringify(req.body, null, 2));
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ Validation errors:', errors.array());
       return res.status(400).json({ error: 'Invalid Telegram data', details: errors.array() });
     }
 
