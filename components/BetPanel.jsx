@@ -31,10 +31,10 @@ const BetPanel = ({ gameState, betAmount, setBetAmount, onBet, onCashOut, userBa
         onCashOut();
         soundEffects.playAutoCashoutSound();
         showFeedback(`Auto-cashed out at ${multiplier.toFixed(2)}x!`, 'auto-cashout');
-        updateSetting('autoCashoutEnabled', false); // Disable after auto-cashout
+        // Keep autocashout enabled for next bet - better UX
       }
     }
-  }, [multiplier, autoCashoutEnabled, autoCashoutMultiplier, gameState, activeBet, cashedOutMultiplier, onCashOut, updateSetting]);
+  }, [multiplier, autoCashoutEnabled, autoCashoutMultiplier, gameState, activeBet, cashedOutMultiplier, onCashOut]);
 
 
   const handleDecrease = () => {
