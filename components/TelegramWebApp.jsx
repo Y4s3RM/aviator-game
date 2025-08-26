@@ -19,25 +19,32 @@ const TelegramWebApp = ({ children }) => {
   const [isReady, setIsReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const [debugLogs, setDebugLogs] = useState([]);
+
+  // Add debug log function
+  const addDebugLog = (message) => {
+    console.log(message);
+    setDebugLogs(prev => [...prev.slice(-10), `${new Date().toLocaleTimeString()}: ${message}`]);
+  };
 
   // Authenticate user with backend
   const authenticateUser = async (telegramUser, startParam) => {
     try {
-      console.log('🔐 Authenticating Telegram user:', telegramUser);
-      console.log('📨 Start param:', startParam);
-      console.log('🔍 About to call authService.authenticateWithTelegram...');
+      addDebugLog(`🔐 Authenticating: ${telegramUser.username || telegramUser.first_name}`);
+      addDebugLog(`📨 Start param: ${startParam || 'NONE'}`);
+      addDebugLog('🔍 Calling authService.authenticateWithTelegram...');
       
       const result = await authService.authenticateWithTelegram(telegramUser, startParam);
-      console.log('🔍 Authentication result:', result);
+      addDebugLog(`🔍 Auth result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
       
       if (result.success) {
         setIsAuthenticated(true);
         setAuthError(null);
-        console.log('✅ Authentication successful');
+        addDebugLog('✅ Authentication successful');
         
         // Fred's Fix: Reconnect WebSocket with fresh JWT token
-        console.log('🔄 Reconnecting WebSocket after Telegram authentication...');
-        console.log('🔍 Current auth token:', authService.getToken() ? 'Present' : 'Missing');
+        addDebugLog('🔄 Reconnecting WebSocket...');
+        addDebugLog(`🔍 Auth token: ${authService.getToken() ? 'PRESENT' : 'MISSING'}`);
         gameService.reconnect();
         
         // Show referral message if present - Safe for older browsers
@@ -62,20 +69,16 @@ const TelegramWebApp = ({ children }) => {
 
   useEffect(() => {
     // Initialize Telegram WebApp - Safe for older browsers  
-    console.log('🔍 TelegramWebApp useEffect triggered');
-    console.log('🔍 window.Telegram:', !!window.Telegram);
-    console.log('🔍 window.Telegram.WebApp:', !!window.Telegram?.WebApp);
+    addDebugLog('🔍 TelegramWebApp useEffect triggered');
+    addDebugLog(`🔍 window.Telegram: ${!!window.Telegram}`);
+    addDebugLog(`🔍 window.Telegram.WebApp: ${!!window.Telegram?.WebApp}`);
     
     if (window.Telegram && window.Telegram.WebApp) {
       const webApp = window.Telegram.WebApp;
       setTg(webApp);
 
-      console.log('🤖 Telegram WebApp detected:', {
-        platform: webApp.platform,
-        version: webApp.version,
-        initDataUnsafe: webApp.initDataUnsafe,
-        user: webApp.initDataUnsafe?.user
-      });
+      addDebugLog(`🤖 Telegram WebApp detected: platform=${webApp.platform}, version=${webApp.version}`);
+      addDebugLog(`🤖 User data: ${webApp.initDataUnsafe?.user ? 'FOUND' : 'MISSING'}`);
 
       // Initialize the app
       webApp.ready();
@@ -96,48 +99,48 @@ const TelegramWebApp = ({ children }) => {
       } catch (_) {}
       
       // Get user data and authenticate - Safe for older browsers
-      console.log('🔍 Checking for Telegram user...');
-      console.log('🔍 webApp.initDataUnsafe:', webApp.initDataUnsafe);
-      console.log('🔍 webApp.initDataUnsafe.user:', webApp.initDataUnsafe?.user);
+      addDebugLog('🔍 Checking for Telegram user...');
+      addDebugLog(`🔍 initDataUnsafe exists: ${!!webApp.initDataUnsafe}`);
+      addDebugLog(`🔍 user exists: ${!!webApp.initDataUnsafe?.user}`);
       
       if (webApp.initDataUnsafe && webApp.initDataUnsafe.user) {
         const telegramUser = webApp.initDataUnsafe.user;
         const startParam = webApp.initDataUnsafe.start_param || null;
         
-        console.log('✅ Telegram user found:', telegramUser);
-        console.log('📨 Start param:', startParam);
+        addDebugLog(`✅ Telegram user found: ${telegramUser.username || telegramUser.first_name}`);
+        addDebugLog(`📨 Start param: ${startParam || 'NONE'}`);
         
         setUser(telegramUser);
         
         // Fred's Token Freshness Guard - comprehensive authentication flow
         const ensureFreshAuth = async () => {
-          console.log('🔒 Starting authentication flow...');
-          console.log('🔍 Currently authenticated:', authService.isAuthenticated());
+          addDebugLog('🔒 Starting authentication flow...');
+          addDebugLog(`🔍 Currently authenticated: ${authService.isAuthenticated()}`);
           
           if (authService.isAuthenticated()) {
-            console.log('🔄 Validating existing token...');
+            addDebugLog('🔄 Validating existing token...');
             const validation = await authService.validateCurrentToken();
-            console.log('🔍 Token validation result:', validation);
+            addDebugLog(`🔍 Token validation result: ${validation.valid}`);
             
             if (!validation.valid) {
-              console.log('🧹 Clearing invalid token and re-authenticating...');
+              addDebugLog('🧹 Clearing invalid token and re-authenticating...');
               authService.clearTokens();
               await authenticateUser(telegramUser, startParam);
               gameService.reconnect();
             } else {
-              console.log('✅ Token valid, setting authenticated state...');
+              addDebugLog('✅ Token valid, setting authenticated state...');
               setIsAuthenticated(true);
               gameService.reconnect();
             }
           } else {
-            console.log('🔐 No existing authentication, starting fresh...');
+            addDebugLog('🔐 No existing authentication, starting fresh...');
             await authenticateUser(telegramUser, startParam);
           }
         };
         ensureFreshAuth();
       } else {
-        console.log('❌ No Telegram user found - this explains the guest session!');
-        console.log('🔍 initDataUnsafe structure:', JSON.stringify(webApp.initDataUnsafe, null, 2));
+        addDebugLog('❌ No Telegram user found - this explains the guest session!');
+        addDebugLog(`🔍 initDataUnsafe: ${JSON.stringify(webApp.initDataUnsafe)}`);
       }
 
       // Get theme parameters
@@ -233,6 +236,30 @@ const TelegramWebApp = ({ children }) => {
       authError,
       authenticateUser 
     }}>
+      {/* Debug Panel - Visible on screen */}
+      {debugLogs.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          top: 10,
+          left: 10,
+          right: 10,
+          maxHeight: '200px',
+          background: '#000',
+          color: '#0f0',
+          padding: '10px',
+          fontSize: '10px',
+          fontFamily: 'monospace',
+          overflowY: 'auto',
+          zIndex: 9999,
+          border: '1px solid #333',
+          borderRadius: '5px'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>🔍 DEBUG LOG:</div>
+          {debugLogs.map((log, i) => (
+            <div key={i} style={{ marginBottom: '2px' }}>{log}</div>
+          ))}
+        </div>
+      )}
       {children}
     </TelegramContext.Provider>
   );
