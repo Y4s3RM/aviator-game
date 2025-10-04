@@ -63,7 +63,7 @@ const EarnModal = ({ isOpen, onClose }) => {
   const loadQuests = async () => {
     try {
       setLoading(true);
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://aviator-api-xf7s.onrender.com';
       const response = await fetch(`${backendUrl}/api/quests`, {
         headers: {
           'Authorization': `Bearer ${authService.getToken()}`,
@@ -94,7 +94,7 @@ const EarnModal = ({ isOpen, onClose }) => {
   const claimQuest = async (questId) => {
     try {
       setClaimingQuest(questId);
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://aviator-api-xf7s.onrender.com';
       
       const response = await fetch(`${backendUrl}/api/quests/${questId}/claim`, {
         method: 'POST',
@@ -141,7 +141,7 @@ const EarnModal = ({ isOpen, onClose }) => {
 
   const shareGame = async () => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://aviator-api-xf7s.onrender.com';
       // Record the share action
       const response = await fetch(`${backendUrl}/api/quests/share`, {
         method: 'POST',
@@ -179,7 +179,7 @@ const EarnModal = ({ isOpen, onClose }) => {
 
   const startPlaySession = async () => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://aviator-api-xf7s.onrender.com';
       const response = await fetch(`${backendUrl}/api/play-session/start`, {
         method: 'POST',
         headers: {
@@ -204,7 +204,7 @@ const EarnModal = ({ isOpen, onClose }) => {
     if (!playSession) return;
 
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://aviator-api-xf7s.onrender.com';
       const response = await fetch(`${backendUrl}/api/play-session/end`, {
         method: 'POST',
         headers: {
